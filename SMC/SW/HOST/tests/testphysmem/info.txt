@@ -1,0 +1,1 @@
+This program does not work with ubuntu-natty, because /dev/mem has been removed in that distribution

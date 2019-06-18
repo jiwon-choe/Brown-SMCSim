@@ -1,0 +1,17 @@
+        zlibc
+        zlib1g
+        zlib1g-dev
+        libprotobuf-dev
+        protobuf-compiler
+        libgoogle-perftools-dev
+        gcc-arm-linux-gnueabihf
+        g++-arm-linux-gnueabihf
+        gcc-aarch64-linux-gnu
+        g++-aarch64-linux-gnu
+        swig
+        perl
+        python-dev
+        python-pydot
+        scons
+        m4
+        gnuplot-x11                            (use -q to to disable gnuplots)

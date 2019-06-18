@@ -1,0 +1,6 @@
+# Work Directory
+SMC-WORK/
+SMC/UTILS/variables/
+
+# Python
+*.pyc

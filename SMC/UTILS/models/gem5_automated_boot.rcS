@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Modified by Erfan Azakrhish
+
+if [ ! -f /flag_checkpoint ]; then
+	touch /flag_checkpoint
+	echo ">>> Checkpointing simulation..."
+	/sbin/m5 checkpoint
+else
+	rm /flag_checkpoint -f
+	touch /flag_exit
+fi
+
+if [ -f /flag_checkpoint ] && [ ! -f /flag_exit ]; then
+	touch /flag_exit
+	# Read the script for the checkpoint restored execution
+	echo ">>> Loading new script..."
+	/sbin/m5 readfile > /tmp/runscript
+	chmod 755 /tmp/runscript
+
+	# Execute the new runscript
+	if [ -s /tmp/runscript ]; then
+		./tmp/runscript
+	fi
+fi
+
+echo ">>> Exiting..."
+/sbin/m5 exit
+
+

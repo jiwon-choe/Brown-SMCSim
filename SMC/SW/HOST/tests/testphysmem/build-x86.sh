@@ -1,0 +1,1 @@
+gcc devmem2.c -o devmem2-x86.out

@@ -1,0 +1,4 @@
+﻿This is the resident program on the bare-metal ARM7 PIM device
+This program is always running on the PIM. Whenever a kernel is
+offloaded it will execute it, and after it finished, the control
+will return to the resident program.

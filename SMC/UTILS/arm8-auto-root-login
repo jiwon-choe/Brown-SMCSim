@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Erfan has modified this file for ARMv8 Linux
+
+# Tony's modifications
+# check if we're automatically starting a run script
+
+# Erfan commented this
+#/sbin/m5 readfile > /tmp/script
+#chmod 755 /tmp/script
+#if [ -s /tmp/script ]; then
+#    exec /tmp/script
+#fi
+
+exec /bin/login -f root
