@@ -2,7 +2,9 @@
 
 print_msg "Building PIM API ..."
 
+#JIWON: added NUM_PIM_DEVICES
 echo -e "
+#define NUM_PIM_DEVICES $NUM_PIM_DEVICES
 #define PHY_BASE 		$PIM_ADDRESS_BASE
 #define PIM_HOST_OFFSET		$PIM_HOST_OFFSET
 #define PHY_SIZE 		$(conv_to_bytes $PIM_ADDRESS_SIZE)

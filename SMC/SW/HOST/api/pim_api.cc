@@ -4,6 +4,31 @@
 #include <string.h>		// memcpy
 #include "defs.h"
 
+/* LINKED LIST request_slot_t :
+typedef struct request_slot {
+    uint16_t info_bits;
+    uint16_t timestamp;
+    ulong_t parameter;
+} request_slot_t; (REQUEST_SLOT_SIZE 8)
+*/
+
+/* SKIPLIST request_slot_t :
+typedef struct request_slot {
+    uint8_t info_bits;
+    uint8_t random_level;
+    uint16_t timestamp;
+    ulong_t parameter;
+} request_slot_t; (REQUEST_SLOT_SIZE 8)
+*/
+
+#define REQUEST_SLOT_SIZE 8  // for LINKED LIST, SKIPLIST
+#define INFO_BITS_OFFSET 0 
+#define RANDOM_LEVEL_OFFSET 1
+#define TIMESTAMP_OFFSET 2
+#define PARAMETER_OFFSET 4
+/*********************************************************************************/
+
+
 uint8_t  PIMAPI::CMD_DEMO = PIM_COMMAND_DEMO;
 uint8_t  PIMAPI::CMD_RUN_KERNEL = PIM_COMMAND_RUN_KERNEL;
 uint8_t  PIMAPI::M5_ENABLE_PACKET_LOG = PIM_ENABLE_PACKET_LOG;
@@ -12,8 +37,8 @@ uint8_t  PIMAPI::M5_TIME_STAMP = PIM_TIME_STAMP;
 uint8_t  PIMAPI::M5_EXIT = PIM_EXIT_GEM5;
 
 //*********************************************
-PIMAPI::PIMAPI()
-: pim_va(NULL), pim_fd(-1)
+PIMAPI::PIMAPI(int id)
+: pim_va(NULL), pim_fd(-1), pim_id(id)
 {
 	API_INFO("Written by Erfan Azarkhish - Debugging Enabled");
 	open_device();
@@ -56,13 +81,15 @@ PIMAPI::~PIMAPI()
 void PIMAPI::open_device()
 {
 	ASSERT_DBG( pim_fd == -1 );
-	// open the pim device
-	pim_fd = open("/dev/PIM", O_RDWR | O_SYNC ); // | O_DIRECT);
-	if (pim_fd < 0)
-	{
-		perror("Open /dev/PIM");
-		throw std::exception();
-	}
+    // JIWON: open PIM device corresponding to PIM ID
+    char filename[10] = {0};
+    snprintf(filename, 10, "/dev/PIM%d", pim_id);
+    API_INFO("Opening PIM device %s", filename);
+    pim_fd = open(filename, O_RDWR | O_SYNC);
+    if (pim_fd < 0) {
+        perror(filename);
+        throw std::exception();
+    }
 	API_INFO("PIM device file opened successfully");
 }
 
@@ -72,7 +99,7 @@ void PIMAPI::mmap_device()
 	ASSERT_DBG( pim_va == NULL );
 	ASSERT_DBG( pim_fd != -1 );
 	// Map the whole physical range to userspace
-	pim_va = (char*)mmap(NULL, PHY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, pim_fd, PHY_BASE);
+	pim_va = (char*)mmap(NULL, PHY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, pim_fd, (PHY_BASE + pim_id * PHY_SIZE));
 	
 	// Check if the memory map has failed
 	if(pim_va == (char*) -1)
@@ -90,16 +117,34 @@ void PIMAPI::mmap_device()
 //*********************************************
 void PIMAPI::start_computation(uint8_t command)
 {
-    ASSERT_DBG(current_time_stamp==5)
+    uint8_t status = 0;
 	API_INFO("STARTING COMPUTATION ...");
+    // check for PIM_STATUS == SLEEP, added by jiwon
+    status = check_status();
+	API_INFO("PIM_STATUS_REG=%c", status );
+    while ( status != PIM_STATUS_SLEEP ) {
+		status = check_status();
+    }
+	API_INFO("PIM_STATUS_REG=%c", status );
 	give_command(command);
 	wake_up();
 }
 
 //*********************************************
+void PIMAPI::wait_for_completion_simple()
+{
+    // ADDED BY JIWON
+    uint8_t status = 0;
+    do {
+        status = check_status();
+    } while (status != PIM_STATUS_DONE);
+	API_INFO("GIVING NOP ...");
+	give_command(PIM_COMMAND_NOP);
+}
+
+//*********************************************
 void PIMAPI::wait_for_completion()
 {
-    ASSERT_DBG(current_time_stamp==5)
 	uint8_t status = 0;
 	timespec short_sleep, sleep_rem;
 	short_sleep.tv_sec=0;
@@ -109,7 +154,7 @@ void PIMAPI::wait_for_completion()
 	{
 		nanosleep(&short_sleep, &sleep_rem);
 		status = check_status();
-		API_INFO("PIM_STATUS_REG=%c", status );
+		//API_INFO("PIM_STATUS_REG=%c", status );
 	}
 	while ( status != PIM_STATUS_DONE );
 
@@ -151,7 +196,6 @@ void PIMAPI::read_vreg( uint8_t* value )
 //*********************************************
 void PIMAPI::write_sreg( unsigned index, ulong_t value )
 {
-    ASSERT_DBG(current_time_stamp==3)
 	API_INFO("  SREG[%d] = 0x%lx", index, value );
 	((ulong_t*)(pim_va+PIM_SREG))[index] = value;
 }
@@ -174,6 +218,54 @@ uint8_t PIMAPI::read_byte(ulong_t offset)
 {
 	ASSERT_DBG( offset < PHY_SIZE );
 	return *((uint8_t*)(pim_va+offset));
+}
+
+//*********************************************
+void PIMAPI::write_info_bits( uint16_t infobits, int request_slot_number )
+{
+    *((uint16_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+INFO_BITS_OFFSET)) = infobits;
+}
+
+//*********************************************
+void PIMAPI::write_skiplist_info_bits( uint8_t infobits, int request_slot_number )
+{
+    *((uint8_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+INFO_BITS_OFFSET)) = infobits;
+}
+
+//*********************************************
+void PIMAPI::write_skiplist_random_level( uint8_t random_level, int request_slot_number )
+{
+    *((uint8_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+RANDOM_LEVEL_OFFSET)) = random_level;
+}
+
+//*********************************************
+uint16_t PIMAPI::read_info_bits( int request_slot_number )
+{
+    return *((uint16_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+INFO_BITS_OFFSET));
+}
+
+//*********************************************
+uint8_t PIMAPI::read_skiplist_info_bits( int request_slot_number )
+{
+    return *((uint8_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+INFO_BITS_OFFSET));
+}
+
+//*********************************************
+uint16_t PIMAPI::read_timestamp( int request_slot_number )
+{
+    return *((uint16_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+TIMESTAMP_OFFSET));
+}
+
+//*********************************************
+void PIMAPI::write_parameter( ulong_t parameter, int request_slot_number )
+{
+    *((ulong_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+PARAMETER_OFFSET)) = parameter;
+}
+
+//*********************************************
+ulong_t PIMAPI::read_parameter( int request_slot_number )
+{
+    return *((ulong_t *)(pim_va+PIM_VREG+(request_slot_number*REQUEST_SLOT_SIZE)+PARAMETER_OFFSET));
 }
 
 //*********************************************
@@ -203,7 +295,6 @@ void PIMAPI::wake_up()
 //*********************************************
 void PIMAPI::offload_kernel(char* name)
 {
-    ASSERT_DBG(current_time_stamp==1)
 	API_INFO("Offloading kernel: %s", name);
 	std::ifstream kf(name);
 	std::string line, term;
@@ -264,7 +355,6 @@ void PIMAPI::offload_kernel(char* name)
 //*********************************************
 void PIMAPI::offload_task(PIMTask* task)
 {
-    ASSERT_DBG(current_time_stamp==3)
 	API_INFO("Offloading task [%s] to the PIM device", task->getName());
 	tasks.push_back(task);
 	task->updatePages();

@@ -24,8 +24,8 @@
 class PIMAPI
 {
 public:
-	PIMAPI();							// Open the PIM device and allocate it in memory
-	~PIMAPI();							// Close the PIM device and deallocate the memory
+	PIMAPI(int id=0);							// Open the PIM device with specified PIM ID and allocate it in memory
+	~PIMAPI();							// Close the PIM device with specified PIM ID and deallocate the memory
 
 	/* Offload methods */
 	void offload_kernel(char* name);	// Offload a kernel.hex code to the device
@@ -33,6 +33,7 @@ public:
 
 	/* Start/stop the computation task */
 	void start_computation( uint8_t command );	// Wake the PIM up and give command to execute	[NON-BLOCKING]
+	void wait_for_completion_simple();					// Wait until PIM finishes execution (JIWON: does not sleep, and does not send NOP, since PIM kernel does it) 			[BLOCKING]
 	void wait_for_completion();					// Wait until PIM finishes executino 			[BLOCKING]
 
 	/* Commands to give to the PIM device (start_computation) */
@@ -53,6 +54,19 @@ public:
 	*/
 	void write_sreg( unsigned i, ulong_t value ); 	// Write a value to SR[i]  [HOST->PIM]
 	ulong_t read_sreg( unsigned i ); 				// Read a value from SR[i] [PIM->HOST]
+
+    /*ADDED BY JIWON*/
+    void write_info_bits( uint16_t infobits, int request_slot_number ); // writes the info bits to specified request slot [HOST->PIM]
+    void write_skiplist_info_bits( uint8_t infobits, int request_slot_number ); // writes the info bits to specified request slot [HOST->PIM]
+    void write_skiplist_random_level( uint8_t random_level, int request_slot_number ); // writes the random level necessary for skiplist add operation [HOST->PIM]
+    uint16_t read_info_bits( int request_slot_number ); // reads the info bits from specified request slot [PIM->HOST]
+    uint8_t read_skiplist_info_bits( int request_slot_number ); // reads the info bits from specified request slot [PIM->HOST]
+    uint16_t read_timestamp( int request_slot_number ); // reads the operation timestamp from specified request slot [PIM->HOST]
+    void write_parameter( ulong_t parameter, int request_slot_number ); // writes parameter to specified request slot [HOST->PIM]
+    ulong_t read_parameter( int request_slot_number ); // reads parameter from specified request slot [PIM->HOST]
+    void write_vault_ptr( ulong_t vault_ptr, int request_slot_number ); // writes vault ptr of node in question to specified request slot [HOST->PIM]
+    ulong_t read_vault_ptr( int request_slot_number ); // reads vault_ptr of added node from specified request slot [PIM->HOST]
+    /*end of ADDED BY JIWON*/
 
 	/*
 	Communicating with gem5 (for debugging)
@@ -88,6 +102,9 @@ private:
 
 	// File descriptor the PIM device
 	int pim_fd;
+
+    // PIM ID number (JIWON)
+    int pim_id;
 
 	// Arguments to send to ioctl (ioctl_arg[0] = length)
 	ulong_t* ioctl_arg;
