@@ -17,7 +17,8 @@ If host is AARCH, then PIM is AARCH
 /*****************************************************/
 // Definitions (Private, not to be exposed to the API)
 // Number of contiguous minor numbers allocated for this module
-#define PIM_MOD_DEV_NO		1
+// JIWON: to be replaced with NUM_PIM_DEVICES
+//#define PIM_MOD_DEV_NO		1
 
 /*****************************************************/
 // Messages and Debugging facilities
@@ -127,21 +128,21 @@ loff_t pim_llseek(struct file *filp, loff_t off, int whence);
 int pim_get_user_pages(ulong_t addr_start, ulong_t n_pages);
 
 // Create a slice table based on the pinned pages
-int pim_create_slice_table(ulong_t vaddr_start);
+int pim_create_slice_table(int minor, ulong_t vaddr_start);
 
 // Write 1 byte to the memory mapped region of PIM
-void pim_write_byte(ulong_t offset, char data);
+void pim_write_byte(int minor, ulong_t offset, char data);
 
 // Read 1 byte from the memory mapped region of PIM
-char pim_read_byte(ulong_t offset);
+char pim_read_byte(int minor, ulong_t offset);
 
 // Write a (ulong_t) to the memory mapped region of PIM (4Bytes for ARM7 and 8Bytes for ARM8)
-void pim_write_ulong_t(ulong_t offset, ulong_t data);
+void pim_write_ulong_t(int minor, ulong_t offset, ulong_t data);
 
 // Read a (ulong_t) from the memory mapped region of PIM (4Bytes for ARM7 and 8Bytes for ARM8)
-ulong_t pim_read_ulong_t(ulong_t offset);
+ulong_t pim_read_ulong_t(int minor, ulong_t offset);
 
 // Flush the caches for all pages in the pages.list
-int pim_cache_flush(void);
+int pim_cache_flush(int minor);
 
 #endif // _PIM_DEVICE_DRIVER_

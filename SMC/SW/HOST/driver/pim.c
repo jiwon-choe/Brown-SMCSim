@@ -38,7 +38,8 @@ struct file_operations pim_fops = {
 	.mmap = pim_mmap };
 
 // Static variables
-static PIMDevice pimdevice;				// The PIM Device struct
+//static PIMDevice pimdevice;				// The PIM Device struct
+static PIMDevice pimdevice[NUM_PIM_DEVICES]; // PIM Device structs
 static Pages pages;						// List of the pinned pages
 static struct class *pimclass;			// Class of our device
 static Slice* slicetable;       		// Slice Table
@@ -59,8 +60,9 @@ static int pim_ioctl_allocate = 0;
 static int __init pim_init(void)
 {
 	int err, devno;
+    int i; // JIWON
 	PIM_INFO("pim_init Loading device driver for PIM!");
-	pimdevice.min = 0;
+	pimdevice[0].min = 0;
     pim_init_count++;
     ASSERT(pim_init_count == 1); // For now, only one user can use the driver
 	pages.list = NULL;
@@ -78,14 +80,18 @@ static int __init pim_init(void)
     ASSERT(sizeof(unsigned)==4); // Used as ioctl argument size
 
 	// INIT MODULE CHAR DEVICE
-	err = alloc_chrdev_region(&pimdevice.dev, pimdevice.min, PIM_MOD_DEV_NO, "PIM");
+	err = alloc_chrdev_region(&(pimdevice[0].dev), pimdevice[0].min, NUM_PIM_DEVICES, "PIM"); // JIWON: replaced PIM_MOD_DEV_NO with NUM_PIM_DEVICES
 
+    // JIWON: can share one device class for multiple device nodes
 	if ((pimclass = class_create(THIS_MODULE, "chardrv")) == NULL) {
-		unregister_chrdev_region(pimdevice.dev, 1);
+		unregister_chrdev_region(pimdevice[0].dev, NUM_PIM_DEVICES);
 		PIM_WARN("PIM error creating class");
 		return -1;
 	}
-	if (device_create(pimclass, NULL, pimdevice.dev, NULL, "PIM") == NULL) {
+
+    // JIWON: modified all commented-out code below to create multiple device nodes 
+
+	/*if (device_create(pimclass, NULL, pimdevice.dev, NULL, "PIM") == NULL) {
 		class_destroy(pimclass);
 		unregister_chrdev_region(pimdevice.dev, 1);
 		PIM_WARN("PIM error creating device");
@@ -98,23 +104,44 @@ static int __init pim_init(void)
 		PIM_WARN("PIM can't get the major %d", pimdevice.maj);
 	}
 
-	pimdevice.fops = &pim_fops;
+	pimdevice.fops = &pim_fops;*/
+    pimdevice[0].maj = MAJOR(pimdevice[0].dev);
+    if (err < 0) {
+        PIM_WARN("PIM can't get the major %d", pimdevice[0].maj);
+    }
+    for (i = 0; i < NUM_PIM_DEVICES; i++) {
+        pimdevice[i].maj = pimdevice[0].maj;
+        pimdevice[i].min = i;
+        pimdevice[i].dev = MKDEV(pimdevice[0].maj, i);
 
-	// STRUCT CDEV
-	devno = MKDEV(pimdevice.maj, pimdevice.min);
-	cdev_init(&pimdevice.cdev, pimdevice.fops);
-	pimdevice.cdev.owner = THIS_MODULE;
-	pimdevice.cdev.ops = pimdevice.fops;
-	err = cdev_add(&pimdevice.cdev, devno, PIM_MOD_DEV_NO);
-	PIM_INFO("cdev added, major number: %d, minor number: %d", pimdevice.maj, pimdevice.min);
+        if (device_create(pimclass, NULL, pimdevice[i].dev, NULL, "PIM%d", i) == NULL) {
+            class_destroy(pimclass);
+            unregister_chrdev_region(pimdevice[0].dev, NUM_PIM_DEVICES);
+            PIM_WARN("PIM error in creating device %d", i);
+        }
+
+        pimdevice[i].fops = &pim_fops;
+    } // end of modified by JIWON
+
+	// STRUCT CDEV // JIWON: instantiating a single module for multiple devices
+	devno = MKDEV(pimdevice[0].maj, pimdevice[0].min);
+	cdev_init(&pimdevice[0].cdev, pimdevice[0].fops);
+	pimdevice[0].cdev.owner = THIS_MODULE;
+	pimdevice[0].cdev.ops = pimdevice[0].fops;
+	err = cdev_add(&(pimdevice[0].cdev), devno, NUM_PIM_DEVICES);
+	PIM_INFO("cdev added, major number: %d, minor number: %d", pimdevice[0].maj, pimdevice[0].min);
 	if (err!=0) {
 		PIM_NOTICE("Error opening the device: %d\n", err);
 		return err;
 	}
 	
 	//remapping the physical addresses range to the kernel virtual memory map
-	pimdevice.mem = ioremap_nocache(PHY_BASE, PHY_SIZE);
-	PIM_INFO("PIM physical range [%lx:%lx] mapped to kernel space @ %lx",(ulong_t)PHY_BASE, (ulong_t)(PHY_BASE+PHY_SIZE-1), (unsigned long)pimdevice.mem);
+    for (i = 0; i < NUM_PIM_DEVICES; i++) {
+        pimdevice[i].mem = ioremap_nocache(PHY_BASE + i*PHY_SIZE, PHY_SIZE);
+	    PIM_INFO("PIM physical range [%lx:%lx] mapped to kernel space @ %lx",(ulong_t)(PHY_BASE + i*PHY_SIZE), (ulong_t)(PHY_BASE+(i*PHY_SIZE)+PHY_SIZE-1), (unsigned long)pimdevice[i].mem);
+    }
+	//pimdevice.mem = ioremap_nocache(PHY_BASE, NUM_PIM_DEVICES*PHY_SIZE);
+	//PIM_INFO("PIM physical range [%lx:%lx] mapped to kernel space @ %lx",(ulong_t)PHY_BASE, (ulong_t)(PHY_BASE+(NUM_PIM_DEVICES*PHY_SIZE)-1), (unsigned long)pimdevice.mem);
 
 	return 0;
 }
@@ -124,8 +151,8 @@ static int __init pim_init(void)
 static void __exit pim_exit(void)
 {
 	PIM_INFO("pim_exit");
-	cdev_del(&pimdevice.cdev);
-	unregister_chrdev_region(pimdevice.dev, PIM_MOD_DEV_NO);
+	cdev_del(&(pimdevice[0].cdev));
+	unregister_chrdev_region(pimdevice[0].dev, NUM_PIM_DEVICES);
 	PIM_ALERT("Unloading device driver for PIM");
 	return;
 }
@@ -141,6 +168,7 @@ long pim_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	int i = 0;
 	int err = 0;
 	long retval = 1; // success
+    int minor_num = iminor(filp->f_dentry->d_inode);
 	unsigned num_ranges = 0;
 	ulong_t ioctl_arg[PIM_IOCTL_MAX_ARGS];
 	ulong_t ioctl_arg_size = 0;
@@ -217,7 +245,7 @@ long pim_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		  Also, flush the caches to make sure the most recent data
 		  is accessible by PIM
 		 */
-		pim_create_slice_table(ioctl_arg[1]);
+		pim_create_slice_table(minor_num, ioctl_arg[1]);
 	break;
 	//*******************
 	case PIM_IOCTL_RELEASE_ALL_DATA:	// Release all the pages
@@ -381,7 +409,7 @@ int pim_get_user_pages(ulong_t addr_start, ulong_t n_pages)
   Notice: This slice table is associated with a contiguous virtual region
 */
 
-int pim_create_slice_table(ulong_t vaddr_start)
+int pim_create_slice_table(int minor, ulong_t vaddr_start)
 {
 	unsigned i, j, c, order;
 	//ulong_t* p;
@@ -463,13 +491,13 @@ int pim_create_slice_table(ulong_t vaddr_start)
 	  Send the physical pointer to the SliceTable to PIM, so PIM can use it
 	   whenever a miss occurs in its TLBs.
 	*/
-    pim_write_ulong_t(PIM_SLICETABLE,  slicetable_paddr);
-    pim_write_ulong_t(PIM_SLICECOUNT,  pages.count);
-    pim_write_ulong_t(PIM_SLICEVSTART, slicetable[0].vaddr);
+    pim_write_ulong_t(minor, PIM_SLICETABLE,  slicetable_paddr);
+    pim_write_ulong_t(minor, PIM_SLICECOUNT,  pages.count);
+    pim_write_ulong_t(minor, PIM_SLICEVSTART, slicetable[0].vaddr);
 	// Debug:
-	PIM_INFO("PIM_SLICETABLE:  0x%lx", pim_read_ulong_t(PIM_SLICETABLE));
-	PIM_INFO("PIM_SLICECOUNT:    %ld", pim_read_ulong_t(PIM_SLICECOUNT));
-	PIM_INFO("PIM_SLICEVSTART: 0x%lx", pim_read_ulong_t(PIM_SLICEVSTART));
+	PIM_INFO("PIM_SLICETABLE:  0x%lx", pim_read_ulong_t(minor, PIM_SLICETABLE));
+	PIM_INFO("PIM_SLICECOUNT:    %ld", pim_read_ulong_t(minor, PIM_SLICECOUNT));
+	PIM_INFO("PIM_SLICEVSTART: 0x%lx", pim_read_ulong_t(minor, PIM_SLICEVSTART));
 
 	/*
 	  Flush the caches to make sure the most recent data is accessible by 
@@ -478,7 +506,7 @@ int pim_create_slice_table(ulong_t vaddr_start)
 	  changes won't be reflected
 	*/
 	//pim_write_byte(PIM_M5_REG, PIM_TIME_STAMP + 3);
-	pim_cache_flush();
+	pim_cache_flush(minor);
 	//pim_write_byte(PIM_M5_REG, PIM_TIME_STAMP + 4);
 	
 	/**** Do not put anything here ****/
@@ -491,25 +519,25 @@ int pim_create_slice_table(ulong_t vaddr_start)
   @offset: byte offset from the start of the mmaped region
   @data: can be byte or word
 */
-void pim_write_byte(ulong_t offset, char data)
+void pim_write_byte(int minor, ulong_t offset, char data)
 {
 	ASSERT( offset < PHY_SIZE );
-	((char*)pimdevice.mem)[offset] = data;
+	((char*)pimdevice[minor].mem)[offset] = data;
 }
-char pim_read_byte(ulong_t offset)
+char pim_read_byte(int minor, ulong_t offset)
 {
 	ASSERT( offset < PHY_SIZE );
-	return ((char*)pimdevice.mem)[offset];
+	return ((char*)pimdevice[minor].mem)[offset];
 }
-void pim_write_ulong_t(ulong_t offset, ulong_t data)
+void pim_write_ulong_t(int minor, ulong_t offset, ulong_t data)
 {
 	ASSERT( offset < PHY_SIZE );
-	*((ulong_t*)((char*)pimdevice.mem+offset)) = data;
+	*((ulong_t*)((char*)pimdevice[minor].mem+offset)) = data;
 }
-ulong_t pim_read_ulong_t(ulong_t offset)
+ulong_t pim_read_ulong_t(int minor, ulong_t offset)
 {
 	ASSERT( offset < PHY_SIZE );
-	return *((ulong_t*)((char*)pimdevice.mem+offset));
+	return *((ulong_t*)((char*)pimdevice[minor].mem+offset));
 }
 
 /*
@@ -517,7 +545,7 @@ ulong_t pim_read_ulong_t(ulong_t offset)
   is accessible by the PIM device.
   For every page in slicetable, it will flush the whole range
 */
-int pim_cache_flush()
+int pim_cache_flush(int minor)
 {
 	/*
 	gem5 does not implement the cache flush instructions of ARM.
@@ -528,20 +556,20 @@ int pim_cache_flush()
 	for (i=0; i<pages.count; i++) 
 	{
 		//PIM_INFO("Flushed L2: pages.physical_addr[%ld]=0x%lx", i, pages.physical_addr[i]);
-		pim_write_ulong_t(PIM_M5_D1_REG, (ulong_t)(pages.physical_addr[i]));
-        pim_write_ulong_t(PIM_M5_D2_REG, (ulong_t)(pages.physical_addr[i]+PAGE_SIZE-1));
+		pim_write_ulong_t(minor, PIM_M5_D1_REG, (ulong_t)(pages.physical_addr[i]));
+        pim_write_ulong_t(minor, PIM_M5_D2_REG, (ulong_t)(pages.physical_addr[i]+PAGE_SIZE-1));
         // This is necessary to maintain the order of the transactions
-        pim_read_ulong_t(PIM_M5_D1_REG);
-        pim_read_ulong_t(PIM_M5_D2_REG);
-		pim_write_byte(PIM_M5_REG, PIM_HOST_CACHE_FLUSH_HACK);
+        pim_read_ulong_t(minor, PIM_M5_D1_REG);
+        pim_read_ulong_t(minor, PIM_M5_D2_REG);
+		pim_write_byte(minor, PIM_M5_REG, PIM_HOST_CACHE_FLUSH_HACK);
 	}
 	PIM_INFO("Flushing the slice-table itself");
-	pim_write_ulong_t(PIM_M5_D1_REG, (ulong_t)(slicetable_paddr));
-	pim_write_ulong_t(PIM_M5_D2_REG, (ulong_t)(slicetable_paddr + pages.count*sizeof(Slice)-1));
+	pim_write_ulong_t(minor, PIM_M5_D1_REG, (ulong_t)(slicetable_paddr));
+	pim_write_ulong_t(minor, PIM_M5_D2_REG, (ulong_t)(slicetable_paddr + pages.count*sizeof(Slice)-1));
     // This is necessary to maintain the order of the transactions
-    pim_read_ulong_t(PIM_M5_D1_REG);
-    pim_read_ulong_t(PIM_M5_D2_REG);
-	pim_write_byte(PIM_M5_REG, PIM_HOST_CACHE_FLUSH_HACK);
+    pim_read_ulong_t(minor, PIM_M5_D1_REG);
+    pim_read_ulong_t(minor, PIM_M5_D2_REG);
+	pim_write_byte(minor, PIM_M5_REG, PIM_HOST_CACHE_FLUSH_HACK);
 
 //  PIM_INFO("Flushing the slice-table itself");
 //	void * kaddr;
