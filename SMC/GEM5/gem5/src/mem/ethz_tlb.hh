@@ -116,6 +116,7 @@ public:
     // bool retry_belongs_to_dma;    // If the request belongs to DMA and we are not successful in sending the packet, we must send back the retry to DMA and not to the host CPU
     ethz_DMA* dma;
     unsigned pim_arch;
+    int pim_id; //JIWON
 };
 
 #endif //__ETHZ_TLB_HH__

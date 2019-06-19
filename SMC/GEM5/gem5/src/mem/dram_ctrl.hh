@@ -261,13 +261,15 @@ class DRAMCtrl : public AbstractMemory
         BurstHelper* burstHelper;
         Bank& bankRef;
 
+        const bool isDummy; // JIWON+AMY: dummy pkt created for filling up buffer
+
         DRAMPacket(PacketPtr _pkt, bool is_read, uint8_t _rank, uint8_t _bank,
                    uint32_t _row, uint16_t bank_id, Addr _addr,
-                   unsigned int _size, Bank& bank_ref)
+                   unsigned int _size, Bank& bank_ref, bool is_dummy)
             : entryTime(curTick()), readyTime(curTick()),
               pkt(_pkt), isRead(is_read), rank(_rank), bank(_bank), row(_row),
               bankId(bank_id), addr(_addr), size(_size), burstHelper(NULL),
-              bankRef(bank_ref)
+              bankRef(bank_ref), isDummy(is_dummy)
         { }
 
     };
@@ -311,6 +313,16 @@ class DRAMCtrl : public AbstractMemory
      * @return true if write queue is full, false otherwise
      */
     bool writeQueueFull(unsigned int pktCount) const;
+
+    /**
+     * JIWON:
+     * Add dummy packets that account for timing and power related to
+     * reads and bursts that fill up the extra buffer.
+     * the dummy DRAMPackets have isDummy set to true, so that
+     * responses are not generated.
+     * @param pkt The request packet from the outside world.
+     */
+    void addDummiesToReadQueue(PacketPtr pkt);
 
     /**
      * When a new read comes in, first check if the write q has a
@@ -374,10 +386,15 @@ class DRAMCtrl : public AbstractMemory
      * @param dramPktAddr The starting address of the DRAM packet
      * @param size The size of the DRAM packet in bytes
      * @param isRead Is the request for a read or a write to DRAM
+     * are "dummy", used to calculate timing and power for
+     * bursts to fill up extra buffer in ctrl. This pkt should
+     * not send a real response back. (isDummy added by JIWON)
      * @return A DRAMPacket pointer with the decoded information
      */
     DRAMPacket* decodeAddr(PacketPtr pkt, Addr dramPktAddr, unsigned int size,
                            bool isRead);
+    DRAMPacket* decodeAddr(PacketPtr pkt, Addr dramPktAddr, unsigned int size,
+                           bool isRead, bool isDummy);
 
     /**
      * The memory schduler/arbiter - picks which request needs to
@@ -480,6 +497,7 @@ class DRAMCtrl : public AbstractMemory
     const uint32_t deviceBusWidth;
     const uint32_t burstLength;
     const uint32_t deviceRowBufferSize;
+    const bool haveExtraRowBuffer; // JIWON
     const uint32_t devicesPerRank;
     const uint32_t burstSize;
     const uint32_t rowBufferSize;
@@ -499,6 +517,12 @@ class DRAMCtrl : public AbstractMemory
     uint32_t writesThisTime;
     uint32_t readsThisTime;
 
+    /* parameters needed for extra buffer */
+    bool extraAddrValid; // AMY
+    uint32_t extraRowBufferSize;
+    uint32_t extraRowBufferAddr;
+    Tick extraBufferReadyAt;
+ 
     /**
      * Basic memory timing parameters initialized based on parameter
      * values.
@@ -656,6 +680,15 @@ class DRAMCtrl : public AbstractMemory
     Stats::Histogram bytesPerActivate;
     Stats::Histogram rdPerTurnAround;
     Stats::Histogram wrPerTurnAround;
+    Stats::Scalar totTimeExtraBufferReadyToBufferHit; // JIWON
+    Stats::Formula avgTimeExtraBufferReadyToBufferHit; // JIWON
+    Stats::Scalar totTimeExtraBufferReadyEstToActual; //JIWON
+    Stats::Formula avgTimeExtraBufferReadyEstToActual; // JIWON
+
+    // AMY: extra row buffer stats
+    Stats::Scalar extraRowBufferHits;
+    Stats::Scalar totExtraBufferDelay;
+    Stats::Formula avgExtraBufferDelay; // JIWON+AMY: avg delay from waiting extra buffer to be filled with necessary data
 
     // Latencies summed over all requests
     Stats::Scalar totQLat;

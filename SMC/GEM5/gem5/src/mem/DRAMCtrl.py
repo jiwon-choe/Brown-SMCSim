@@ -114,6 +114,9 @@ class DRAMCtrl(AbstractMemory):
                                            "device/chip")
     devices_per_rank = Param.Unsigned("Number of devices/chips per rank")
     ranks_per_channel = Param.Unsigned("Number of ranks per channel")
+    # JIWON: add additional buffer for performance
+    have_extra_rowbuffer = Param.Bool(False, "DRAM has extra rowbuffer or not")
+    extra_rowbuffer_size = Param.MemorySize('0B', "Size of extra rowbuffer")
 
     # default to 0 bank groups per rank, indicating bank group architecture
     # is not used
@@ -805,3 +808,17 @@ class HMCVault(DRAMCtrl):
     VDD = '1.2V'            # Brent Keeth - HMC - 2012
 
 ######################################################################################### Erfan
+
+class OpenPageHMCVault(HMCVault):
+
+    addr_mapping = 'RoRaBaCoCh'
+    page_policy = 'open_adaptive'
+
+######################################################################################### JIWON
+
+class BufferHMCVault(HMCVault):
+
+    have_extra_rowbuffer = True
+    addr_mapping = 'RoRaBaCoCh' # increase row hits
+
+######################################################################################### JIWON

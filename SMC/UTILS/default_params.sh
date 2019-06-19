@@ -351,6 +351,7 @@ export VSIM_INIT_CYCLE=0
 # Vault Controller
 export GEM5_VAULTCTRL_FRONTEND_LATENCY_cy=4		# Static Frontend latency of the vault controllers (gem5)
 export GEM5_VAULTCTRL_BACKEND_LATENCY_cy=4		# Static Backend latency of the vault controllers (gem5)
+export DRAMCTRL_EXTRA_ROWBUFFER_SIZE=0          # JIWON: size of extra row buffer in DRAM ctrl (bytes)
 
 # DRAM Parameters
 export DRAM_BANK_PARALLELISM=FALSE			# TRUE, FALSE (Parameter is only available in RTL, gem5 by default supports it)	(Bank_Level_Parallelism)
@@ -499,12 +500,16 @@ export GEM5_AUTOMATED_SIMULATION=FALSE
 ###########################################################################
 ###########################################################################
 # # Parameters of the PIM device inside gem5
+export NUM_PIM_DEVICES=0                # JIWON: number of standalone PIM devices to create
+export NEW_PIM="FALSE"                  # JIWON: "TRUE": PIM is new design placed near mem ctrl, "FALSE" 
 export HAVE_PIM_DEVICE="FALSE"          # "TRUE", "FALSE"
 export HAVE_PIM_CLUSTER="FALSE"         # "TRUE", "FALSE" have a cluster of PIM processors
 export HAVE_PARALLEL_PIM="FALSE"        # "TRUE", "FALSE"
+export GEM5_PIM_MEMTYPE=HMCVault		# JIWON: {HMCVault, OpenPageHMCVault, BufferHMCVault ...}
 export MOVE_PIM_TO_HOST="FALSE"			# "TRUE": PIM is placed on the host side, "FALSE": PIM is placed on the LoB of the HMC (Host Side Accelerator)
 export PIM_ADDRESS_BASE="NONE"			# Base address of the memory mapped region inside the PIM device
 export PIM_ADDRESS_SIZE="NONE"			# Size of the memory mapped region inside the PIM device (This is not necessarily memory, and can be IO)
+export PIM_ADDRESS_END="NONE"           # JIWON: last physical address that can be used for PIM memory space (inclusive)
 export PIM_CLOCK_FREQUENCY_GHz="NONE"	# Clock frequency of the PIM device
 export PIM_VREG_SIZE=0				    # Vector size in bytes to perform vector operations
 export PIM_SREG_COUNT=0				    # Number of scalar registers on PIM

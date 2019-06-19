@@ -14,38 +14,92 @@ from _gem5_params import *
 import MemConfig
 import Simulation
 
-if ( HAVE_PIM_DEVICE == "TRUE" ):
-    pim_device_range= AddrRange(PIM_ADDRESS_BASE,size = PIM_ADDRESS_SIZE)
+####################################
+# configure new PIM device (near mem ctrl)
+def jiwon_config_pim( test_sys, options ):
+    (TestCPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
+
+    # create PIM vault ctrls
+    cls = MemConfig.get(options.pim_mem_type)
+    pim_vault_ctrls = []
+    for i in xrange(options.num_pim_sys):
+        vault_range = AddrRange(PIM_VAULT_BASE_ADDR + i*DRAM_CHANNEL_SIZE_INT, size=DRAM_CHANNEL_SIZE_MB)
+        pim_vault = ethz_create_mem_ctrl(cls, vault_range, i=0, nbr_mem_ctrls=1, intlv_bits=0, cache_line_size=test_sys.cache_line_size.value) 
+        pim_vault_ctrls.append(pim_vault)
+
+    test_sys.pim_vault_ctrls = pim_vault_ctrls
+
+    # create PIM cores
+    test_sys.pim_sys = [build_pim_system(options, test_mem_mode, TestCPUClass, pim_id=i) for i in xrange(options.num_pim_sys)]
+    for i in xrange(options.num_pim_sys):
+        pim_device_range = AddrRange(PIM_ADDRESS_BASE + i*PIM_ADDRESS_SIZE_INT, size = PIM_ADDRESS_SIZE) #physical address range
+        pim_vault_phys_addr_base = PIM_VAULT_BASE_ADDR + i*DRAM_CHANNEL_SIZE_INT
+        pim_vault_range = AddrRange(pim_vault_phys_addr_base, size=DRAM_CHANNEL_SIZE_MB) #physical address range
+        test_sys.pim_sys[i].p2s = Bridge(ranges=pim_vault_range, delay='0.01ns', req_size=32, resp_size=32)
+        test_sys.pim_sys[i].s2p = Bridge(ranges=pim_device_range, delay='0.01ns', req_size=32, resp_size=32)
+
+        # add vault address ranges to TLB
+        pim_vault_virt_addr_base = 0xC0000000  #JIWON: TODO-- need to change this to something more reasonable....
+        test_sys.pim_sys[i].itlb.original_ranges.append(AddrRange(pim_vault_virt_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+        test_sys.pim_sys[i].itlb.remapped_ranges.append(AddrRange(pim_vault_phys_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+        test_sys.pim_sys[i].dtlb.original_ranges.append(AddrRange(pim_vault_virt_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+        test_sys.pim_sys[i].dtlb.remapped_ranges.append(AddrRange(pim_vault_phys_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+        test_sys.pim_sys[i].stlb.original_ranges.append(AddrRange(pim_vault_virt_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+        test_sys.pim_sys[i].stlb.remapped_ranges.append(AddrRange(pim_vault_phys_addr_base, size=DRAM_CHANNEL_SIZE_MB))
+
+        if ( GEM5_ENABLE_COMM_MONITORS == "TRUE" ):
+            test_sys.pim_sys[i].Smon = CommMonitor()
+
+            if ( SMON_DUMP_ADDRESS == "TRUE" ):
+                test_sys.pim_sys[i].Smon.dump_addresses=True
+                test_sys.pim_sys[i].Smon.dump_file="m5out/smon_addr_dump.txt"
+
+            test_sys.pim_sys[i].pimbus.master = test_sys.pim_sys[i].Smon.slave
+            test_sys.pim_sys[i].Smon.master = test_sys.pim_sys[i].p2s.slave
+        else:
+            test_sys.pim_sys[i].pimbus.master = test_sys.pim_sys[i].p2s.slave
+
+        test_sys.pim_sys[i].s2p.master = test_sys.pim_sys[i].pimbus.slave
+        if ( MOVE_PIM_TO_HOST == "FALSE" ):
+            test_sys.smcxbar.master = test_sys.pim_sys[i].s2p.slave # connect PIM core to system
+            test_sys.pim_vault_ctrls[i].port = test_sys.pim_sys[i].p2s.master # connect PIM vault to PIM core
+        else:
+            test_sys.pim_sys[i].p2s.master = test_sys.membus.slave
+            test_sys.membus.master = test_sys.pim_sys[i].s2p.slave;
+
 
 ####################################
 # Configure the PIM device
 def ethz_config_pim( test_sys, options ):
     (TestCPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
-    pim_sys = build_pim_system(options, test_mem_mode, TestCPUClass)
-    test_sys.pim_sys = pim_sys
 
-    pim_sys.p2s = Bridge(ranges=test_sys.mem_ranges, delay='0.01ns', req_size=32, resp_size=32)
-    pim_sys.s2p = Bridge(ranges=pim_device_range, delay='0.01ns', req_size=32, resp_size=32)
+    # JIWON: existing code created only one PIM system, modified to create multiple as necessary
+    test_sys.pim_sys = [build_pim_system(options, test_mem_mode, TestCPUClass, pim_id=i) for i in xrange(options.num_pim_sys)]
+    for i in xrange(options.num_pim_sys):
+        pim_device_range = AddrRange(PIM_ADDRESS_BASE + i * PIM_ADDRESS_SIZE_INT, size = PIM_ADDRESS_SIZE) # added by JIWON
+        test_sys.pim_sys[i].p2s = Bridge(ranges=test_sys.mem_ranges, delay='0.01ns', req_size=32, resp_size=32)
+        test_sys.pim_sys[i].s2p = Bridge(ranges=pim_device_range, delay='0.01ns', req_size=32, resp_size=32)
 
-    if ( GEM5_ENABLE_COMM_MONITORS == "TRUE" ):
-        pim_sys.Smon = CommMonitor()
+        if ( GEM5_ENABLE_COMM_MONITORS == "TRUE" ):
+            test_sys.pim_sys[i].Smon = CommMonitor()
 
-        if ( SMON_DUMP_ADDRESS == "TRUE" ):
-            pim_sys.Smon.dump_addresses=True
-            pim_sys.Smon.dump_file="m5out/smon_addr_dump.txt"
+            if ( SMON_DUMP_ADDRESS == "TRUE" ):
+                test_sys.pim_sys[i].Smon.dump_addresses=True
+                test_sys.pim_sys[i].Smon.dump_file="m5out/smon_addr_dump.txt"
 
-        pim_sys.pimbus.master = pim_sys.Smon.slave
-        pim_sys.Smon.master = pim_sys.p2s.slave
-    else:
-        pim_sys.pimbus.master = pim_sys.p2s.slave
+            test_sys.pim_sys[i].pimbus.master = test_sys.pim_sys[i].Smon.slave
+            test_sys.pim_sys[i].Smon.master = test_sys.pim_sys[i].p2s.slave
+        else:
+            test_sys.pim_sys[i].pimbus.master = test_sys.pim_sys[i].p2s.slave
 
-    pim_sys.s2p.master = pim_sys.pimbus.slave
-    if ( MOVE_PIM_TO_HOST == "FALSE" ):
-        pim_sys.p2s.master = test_sys.smcxbar.slave
-        test_sys.smcxbar.master = pim_sys.s2p.slave;
-    else:
-        pim_sys.p2s.master = test_sys.membus.slave
-        test_sys.membus.master = pim_sys.s2p.slave;
+        test_sys.pim_sys[i].s2p.master = test_sys.pim_sys[i].pimbus.slave
+        if ( MOVE_PIM_TO_HOST == "FALSE" ):
+            test_sys.pim_sys[i].p2s.master = test_sys.smcxbar.slave
+            test_sys.smcxbar.master = test_sys.pim_sys[i].s2p.slave;
+        else:
+            test_sys.pim_sys[i].p2s.master = test_sys.membus.slave
+            test_sys.membus.master = test_sys.pim_sys[i].s2p.slave;
+    # end of JIWON's added code
 
     ### EXTERNAL PIM DEVICE:
     #ethz_print_msg("NOTICE: This should be used only for external C++ PIM model!");
@@ -233,7 +287,10 @@ def ethz_config_memory( test_sys, options ):
 
     ethz_config_mem(options, test_sys)
     if ( HAVE_PIM_DEVICE == "TRUE" ):
-        ethz_config_pim(test_sys, options)
+        if ( NEW_PIM == "TRUE" ):
+            jiwon_config_pim(test_sys, options)
+        else: 
+            ethz_config_pim(test_sys, options)
 
     ethz_print_val("Memory Type", type( test_sys.mem_ctrls[0] ));
     if ( GEM5_MEMTYPE == "HMCVault" ):
@@ -243,9 +300,11 @@ def ethz_config_memory( test_sys, options ):
     # Add PIM ranges to all bridges in the memory system
     #  We do this in the last step to make sure that the memory configuration is ready
     if ( HAVE_PIM_DEVICE == "TRUE" and MOVE_PIM_TO_HOST == "FALSE" and HAVE_PIM_CLUSTER == "FALSE" ):
-        test_sys.smccontroller_pipeline.ranges.append(pim_device_range);
-        for i in xrange(N_TARG_PORT):
-            test_sys.seriallink[i].ranges.append(pim_device_range);
+        for i in xrange(options.num_pim_sys): # JIWON: account for multiple PIMs
+            pim_device_range = AddrRange(PIM_ADDRESS_BASE + i * PIM_ADDRESS_SIZE_INT, size = PIM_ADDRESS_SIZE)
+            test_sys.smccontroller_pipeline.ranges.append(pim_device_range)
+            for j in xrange(N_TARG_PORT):
+                test_sys.seriallink[j].ranges.append(pim_device_range)
 
 # Copied from MemConfig.ethz_config_mem and modified
 ####################################
@@ -312,6 +371,14 @@ def ethz_create_mem_ctrl(cls, r, i, nbr_mem_ctrls, intlv_bits, cache_line_size):
 	#*******************************************************
 	if ( str(type( ctrl )) == "HMCVault" ):
 		ethz_config_smc_vault(ctrl)
+	elif ( str(type( ctrl )) == "BufferHMCVault" ): #JIWON
+		ethz_config_smc_vault(ctrl)
+		ctrl.addr_mapping = 'RoRaBaCoCh' # gets reset in ethz_config_smc_vault
+		ctrl.extra_rowbuffer_size = DRAMCTRL_EXTRA_ROWBUFFER_SIZE # size changes depending on data struct
+	elif ( str(type( ctrl )) == "OpenPageHMCVault" ): #JIWON
+		ethz_config_smc_vault(ctrl)
+		ctrl.page_policy = 'open_adaptive' # gets reset to 'close_adaptive' in ethz_config_smc_vault
+		ctrl.addr_mapping = 'RoRaBaCoCh' # gets reset in ethz_config_smc_vault
 	elif ( str(type( ctrl )) == "ethz_ModelsimIF" ):
 		ctrl.REPORT_PERIOD_ps = GEM5_REPORT_PERIOD_ps
 		ctrl.SHORT_SLEEP_ns = GEM5_SHORT_SLEEP_ns
@@ -372,11 +439,13 @@ def ethz_create_mem_ctrl(cls, r, i, nbr_mem_ctrls, intlv_bits, cache_line_size):
 	return ctrl
 
 ####################################
-def ethz_perform_sanity_checks(system):
+def ethz_perform_sanity_checks(system, options):
     ethz_print_msg("Sanity Checks ...")
     try:
         if ( HAVE_PIM_DEVICE == "TRUE" ):
-            ethz_perform_sanity_checks_pim(system.pim_sys)
+            if ( NEW_PIM == "FALSE" ):
+                for i in xrange(options.num_pim_sys): # JIWON: extended PIM sanity check for multiple PIMs
+                    ethz_perform_sanity_checks_pim(system.pim_sys[i])
         system.smcxbar;
     except Exception,e:
         ethz_print_msg("Error: the system relies on the name of some objects such as pim_sys. Please make sure that they exist with correct names.")

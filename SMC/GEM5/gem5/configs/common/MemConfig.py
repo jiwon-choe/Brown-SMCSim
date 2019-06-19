@@ -60,6 +60,8 @@ _mem_aliases_all = [
     ("wio_200_x128", "WideIO_200_x128"),
     ("dramsim2", "DRAMSim2"),
     ("hmcvault", "HMCVault"),				# Added by Erfan
+    ("openpagehmcvault", "OpenPageHMCVault"), # Added by JIWON
+    ("bufferhmcvault", "BufferHMCVault"),	  # Added by JIWON
     ]
 
 # Filtered list of aliases. Only aliases for existing memory

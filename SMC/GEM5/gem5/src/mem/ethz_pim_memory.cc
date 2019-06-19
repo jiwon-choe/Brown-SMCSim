@@ -55,6 +55,7 @@ ethz_PIMMemory::ethz_PIMMemory(const ethz_PIMMemoryParams* p) :
     PIM_COPROCESSOR_CMD_ADDR(p->PIM_COPROCESSOR_CMD_ADDR),
 	SYSTEM_NUM_CPU(p->SYSTEM_NUM_CPU),
     pim_arch(p->pim_arch),
+    pim_id(p->pim_id), // JIWON: added pim_id
     HMC_ATOMIC_INCR_ADDR(p->HMC_ATOMIC_INCR_ADDR),
     pim_system(nullptr),
     pim_cpu(nullptr)
@@ -63,6 +64,7 @@ ethz_PIMMemory::ethz_PIMMemory(const ethz_PIMMemoryParams* p) :
     _dma_mem_addr = 0;
 	prev_time_stamp = 0;
 	prev_time_stamp_id = '?';
+    pim_sys_name = "system.pim_sys" + std::to_string(pim_id); // JIWON
 	if ( PIM_DEBUG_ADDR )
 		cout << "PIM Memory: PIM_DEBUG_ADDR: 0x" << hex << PIM_DEBUG_ADDR << dec << endl;
 
@@ -80,8 +82,14 @@ void ethz_PIMMemory::init()
 	vector<System *> slist = System::systemList;
 	for ( auto it = slist.begin(); it != slist.end(); it++ )
 	{
-		if ( (*it)->name() == "system.pim_sys" )
+        // JIWON: modified "system.pim_sys" to pim_sys_name
+        // also, must account for both single PIM and multi-PIM (system.pim_sys and system.pim_sys%d)
+		if ( (*it)->name() == pim_sys_name ) {
 			pim_system = (*it);
+        } else if ( (*it)->name() == "system.pim_sys" ) {
+			pim_system = (*it);
+            pim_sys_name = "system.pim_sys";
+        }
 	}
 	if ( pim_system == nullptr )
 	{
@@ -92,7 +100,7 @@ void ethz_PIMMemory::init()
 	
 	if ( ! STANDALONE_SIMULATION )
 	{
-		SimObject* f = SimObject::find("system.pim_sys.dtlb");
+		SimObject* f = SimObject::find((pim_sys_name + ".dtlb").c_str()); // JIWON
 		if ( f )
 			dtlb = (ethz_TLB*) f;
 		else

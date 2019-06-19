@@ -230,6 +230,11 @@ def addFSOptions(parser):
     parser.add_option("--timesync", action="store_true",
             help="Prevent simulated time from getting ahead of real time")
 
+    # JIWON: pim options
+    parser.add_option("--num-pim-sys", type="int", default=0)
+    parser.add_option("--pim-mem-type", type="choice", default="HMCVault",
+                      choices=MemConfig.mem_names())
+
     # System options
     parser.add_option("--kernel", action="store", type="string")
     parser.add_option("--script", action="store", type="string")

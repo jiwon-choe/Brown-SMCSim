@@ -15,3 +15,4 @@ class ethz_TLB(RangeAddrMapper):
     HMC_ATOMIC_FADD = Param.Int(0, "Register for HMC atomic commands");
     HMC_OPERAND = Param.Int(0, "Register as an HMC atomic operand");
     pim_arch = Param.Int(32, "Determine whether PIM is a 32b (ARMv7-a) or a 64b (ARMv8-a) processor");
+    pim_id = Param.Int(-1, "PIM identifier") # JIWON: added pim_id

@@ -54,6 +54,7 @@ $(param_python str GEM5_PERIODIC_STATS_DUMP $GEM5_PERIODIC_STATS_DUMP)
 $(param_python int GEM5_PERIODIC_STATS_DUMP_PERIOD $GEM5_PERIODIC_STATS_DUMP_PERIOD)
 $(param_python str DRAM_LAYER_SIZE_MB "${DRAM_LAYER_SIZE_MB}MB")
 $(param_python str DRAM_CHANNEL_SIZE_MB "${DRAM_CHANNEL_SIZE_MB}MB")
+$(param_python int DRAM_CHANNEL_SIZE_INT ${DRAM_CHANNEL_SIZE_B})
 $(param_python int DRAM_BUS_WIDTH $DRAM_BUS_WIDTH)
 $(param_python int HOST_BURST_SIZE_B $HOST_BURST_SIZE_B)
 $(param_python int SMC_BURST_SIZE_B $SMC_BURST_SIZE_B)
@@ -97,6 +98,7 @@ $(param_python str SCENARIO_CASE_DIR $SCENARIO_CASE_DIR)
 $(param_python str TOTAL_MEM_SIZE_MB "${TOTAL_MEM_SIZE_MB}MB")
 $(param_python str DRAM_SCHEDULING_POLICY_GEM5 $DRAM_SCHEDULING_POLICY_GEM5)
 $(param_python str GEM5_MEMTYPE $GEM5_MEMTYPE)
+$(param_python str GEM5_PIM_MEMTYPE $GEM5_PIM_MEMTYPE)
 $(param_python int NBITS_CH $NBITS_CH)
 $(param_python int NBITS_LB $NBITS_LB)
 $(param_python int NBITS_OF $NBITS_OF)
@@ -109,6 +111,7 @@ $(param_python int GEM5_SMCCONTROLLER_BUFFER_SIZE_RSP $GEM5_SMCCONTROLLER_BUFFER
 $(param_python str GEM5_SMCCONTROLLER_LATENCY "`perl -e "print ($GEM5_SMCCONTROLLER_LATENCY_cy/$HOST_CLOCK_FREQUENCY_GHz)"`ns")
 $(param_python str VAULTCTRL_FRONTEND_LATENCY "`perl -e "print ($GEM5_VAULTCTRL_FRONTEND_LATENCY_cy * $DRAM_tCK)"`ns")
 $(param_python str VAULTCTRL_BACKEND_LATENCY "`perl -e "print ($GEM5_VAULTCTRL_BACKEND_LATENCY_cy * $DRAM_tCK)"`ns")
+$(param_python str DRAMCTRL_EXTRA_ROWBUFFER_SIZE "`perl -e "print ($DRAMCTRL_EXTRA_ROWBUFFER_SIZE)"`B")
 $(param_python int GEM5_LINK_BUFFER_SIZE_REQ $GEM5_LINK_BUFFER_SIZE_REQ)
 $(param_python int GEM5_LINK_BUFFER_SIZE_RSP $GEM5_LINK_BUFFER_SIZE_RSP)
 $(param_python str GEM5_LINK_STATIC_LATENCY "`perl -e "print ($GEM5_SERDES_LATENCY_ns + $GEM5_LINK_LATENCY_ns)"`ns")
@@ -119,10 +122,12 @@ $(param_python str GEM5_RECORD_FILE_NAME $GEM5_RECORD_FILE_NAME)
 $(param_python str GEM5_EXTRAIMAGE $GEM5_EXTRAIMAGE)
 $(param_python str HAVE_LISTENERS $HAVE_LISTENERS)
 $(param_python str HAVE_PIM_DEVICE $HAVE_PIM_DEVICE)
+$(param_python str NEW_PIM $NEW_PIM)
 $(param_python str MOVE_PIM_TO_HOST $MOVE_PIM_TO_HOST)
 $(param_python str DRAMSIM2_ENABLE_DEBUG $DRAMSIM2_ENABLE_DEBUG)
 $(param_python str DRAMSIM2_ENABLE_TIMESTAMP $DRAMSIM2_ENABLE_TIMESTAMP)
 $(param_python str HMON_DUMP_ADDRESS $HMON_DUMP_ADDRESS)
+$(set_if_true $NEW_PIM "$(param_python int PIM_VAULT_BASE_ADDR $PIM_VAULT_BASE_ADDR)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python str PIM_CLOCK_FREQUENCY ${PIM_CLOCK_FREQUENCY_GHz}GHz)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python str GEM5_PIM_KERNEL $GEM5_PIM_KERNEL)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_DEBUG_ADDR $PIM_DEBUG_REG+$PIM_ADDRESS_BASE)")
@@ -135,6 +140,7 @@ $(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_SLICECOUNT_ADDR $PIM_SLIC
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_SLICEVSTART_ADDR $PIM_SLICEVSTART+$PIM_ADDRESS_BASE)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_ADDRESS_BASE $PIM_ADDRESS_BASE)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python str PIM_ADDRESS_SIZE $PIM_ADDRESS_SIZE)")
+$(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_ADDRESS_SIZE_INT $(conv_to_bytes $PIM_ADDRESS_SIZE))")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python str PIM_SPM_ACCESSTIME_ns ${PIM_SPM_ACCESSTIME_ns}ns)")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python str PIM_SPM_BW_Gbps "${PIM_SPM_BW_Gbps}GB/s")")
 $(set_if_true $HAVE_PIM_DEVICE "$(param_python int PIM_M5_ADDR $PIM_M5_REG+$PIM_ADDRESS_BASE)")
@@ -174,13 +180,14 @@ if [ $GEM5_SIM_SCRIPT == ./configs/example/ethz_tgen.py ]; then		####### Traffic
 	$GEM5_SIM_SCRIPT \
 	--mem-type=$GEM5_MEMTYPE"
 ###############################################################
-elif [ $GEM5_SIM_SCRIPT == ./configs/example/ethz_fs.py ]; then     ####### Full System Simulation
+elif [ $GEM5_SIM_SCRIPT == ./configs/example/ethz_fs.py ]; then     ####### Full System Simulation #JIWON: added num-pim-sys, pim-mem-type
     GEM5_EXECUTION_COMMAND="$(param_shell none "--debug-flags" $GEM5_DEBUGFLAGS) \
     $(param_shell none "--debug-file" $GEM5_DEBUGFILE) \
     --outdir=$M5_OUTDIR --path=$M5_OUTDIR $GEM5_VERBOSITY \
     $GEM5_SIM_SCRIPT \
     --cpu-type=$GEM5_CPUTYPE \
     --num-cpu=$GEM5_NUMCPU \
+    --num-pim-sys=$NUM_PIM_DEVICES \
     --cpu-clock=${HOST_CLOCK_FREQUENCY_GHz}GHz \
     $(set_if_true $GEM5_AUTOMATED_SIMULATION "--script=$GEM5_AUTOMATED_SCRIPT") \
     $(set_if_true $HAVE_L1_CACHES "--caches") \
@@ -190,6 +197,7 @@ elif [ $GEM5_SIM_SCRIPT == ./configs/example/ethz_fs.py ]; then     ####### Full
     --l2_size=$L2_CACHE_SIZE \
     $(set_if_true $GEM5_BARE_METAL_HOST "--bare-metal") \
     --mem-type=$GEM5_MEMTYPE \
+    --pim-mem-type=$GEM5_PIM_MEMTYPE \
     --mem-size=${TOTAL_MEM_SIZE_MB}MB \
     --mem-channels=$N_INIT_PORT \
     --cacheline_size=$HOST_BURST_SIZE_B \

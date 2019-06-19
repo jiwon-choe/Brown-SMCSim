@@ -70,6 +70,7 @@ DRAMCtrl::DRAMCtrl(const DRAMCtrlParams* p) :
     deviceSize(p->device_size),
     deviceBusWidth(p->device_bus_width), burstLength(p->burst_length),
     deviceRowBufferSize(p->device_rowbuffer_size),
+    haveExtraRowBuffer(p->have_extra_rowbuffer), // JIWON
     devicesPerRank(p->devices_per_rank),
     burstSize((devicesPerRank * burstLength * deviceBusWidth) / 8),
     rowBufferSize(devicesPerRank * deviceRowBufferSize),
@@ -85,6 +86,9 @@ DRAMCtrl::DRAMCtrl(const DRAMCtrlParams* p) :
     writeLowThreshold(writeBufferSize * p->write_low_thresh_perc / 100.0),
     minWritesPerSwitch(p->min_writes_per_switch),
     writesThisTime(0), readsThisTime(0),
+    extraAddrValid(false), // JIWON+AMY
+    extraRowBufferSize(p->extra_rowbuffer_size), //JIWON+AMY
+    extraRowBufferAddr(0), extraBufferReadyAt(0), // AMY
     tCK(p->tCK), tWTR(p->tWTR), tRTW(p->tRTW), tCS(p->tCS), tBURST(p->tBURST),
     tCCD_L(p->tCCD_L), tRCD(p->tRCD), tCL(p->tCL), tRP(p->tRP), tRAS(p->tRAS),
     tWR(p->tWR), tRTP(p->tRTP), tRFC(p->tRFC), tREFI(p->tREFI), tRRD(p->tRRD),
@@ -99,6 +103,14 @@ DRAMCtrl::DRAMCtrl(const DRAMCtrlParams* p) :
     nextReqTime(0), pwrStateTick(0), numBanksActive(0),
     activeRank(0), timeStampOffset(0)
 {
+    // JIWON+AMY: check extra rowbuffer size
+    if (haveExtraRowBuffer) {
+        if (extraRowBufferSize % burstSize != 0) {
+            extraRowBufferSize = (extraRowBufferSize / burstSize) + burstSize;
+        }
+        cout << "extra rowbuffer size: " << extraRowBufferSize << endl;
+    }
+
     // create the bank states based on the dimensions of the ranks and
     // banks
     banks.resize(ranksPerChannel);
@@ -358,6 +370,13 @@ DRAMCtrl::DRAMPacket*
 DRAMCtrl::decodeAddr(PacketPtr pkt, Addr dramPktAddr, unsigned size,
                        bool isRead)
 {
+    return decodeAddr(pkt, dramPktAddr, size, isRead, false);
+}
+
+DRAMCtrl::DRAMPacket*
+DRAMCtrl::decodeAddr(PacketPtr pkt, Addr dramPktAddr, unsigned size,
+                       bool isRead, bool isDummy)
+{
     // decode the address based on the address mapping scheme, with
     // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
     // channel, respectively
@@ -460,7 +479,47 @@ DRAMCtrl::decodeAddr(PacketPtr pkt, Addr dramPktAddr, unsigned size,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
     return new DRAMPacket(pkt, isRead, rank, bank, row, bank_id, dramPktAddr,
-                          size, banks[rank][bank]);
+                          size, banks[rank][bank], isDummy);
+}
+
+// JIWON
+void DRAMCtrl::addDummiesToReadQueue(PacketPtr pkt)
+{
+    Addr extraBufferAddr = pkt->getAddr() / extraRowBufferSize;
+    Addr currAddr = 0;
+    unsigned int dram_pkt_count = (extraRowBufferSize / burstSize) - 1;
+    BurstHelper *burst_helper = NULL;
+
+    if (dram_pkt_count > 0) {
+        // align addr to buffer boundary
+        extraBufferAddr = extraBufferAddr * extraRowBufferSize;
+        if (dram_pkt_count > 1) {
+            burst_helper = new BurstHelper(dram_pkt_count);
+        }
+        unsigned int realpkt_index = (pkt->getAddr() - extraBufferAddr) / burstSize;
+
+        for (int cnt = 0; cnt < (extraRowBufferSize / burstSize); cnt++) {
+            if (cnt == realpkt_index) {
+                // this burst has already been accounted for, skip
+                continue;
+            }
+            currAddr = extraBufferAddr + (burstSize * cnt);
+            DRAMPacket *dram_pkt = decodeAddr(pkt, currAddr, burstSize, true, true);
+            dram_pkt->burstHelper = burst_helper;
+
+            // update stats
+            readPktSize[ceilLog2(burstSize)]++;
+            readBursts++;
+            rdQLenPdf[readQueue.size() + respQueue.size()]++;
+            // assume that read queue is never full (possible bc it had always been 1)
+            readQueue.push_back(dram_pkt);
+            avgRdQLen = readQueue.size() + respQueue.size();
+        }
+    }
+    // nextReqEvent is not scheduled here,
+    // since the actual packet being processed will schedule the initial event, 
+    // and that actual packet must happen first
+    return;
 }
 
 void
@@ -481,6 +540,8 @@ DRAMCtrl::addToReadQueue(PacketPtr pkt, unsigned int pktCount)
     Addr addr = pkt->getAddr();
     unsigned pktsServicedByWrQ = 0;
     BurstHelper* burst_helper = NULL;
+    unsigned pktsServicedByExtraBuf = 0; // JIWON/AMY
+
     for (int cnt = 0; cnt < pktCount; ++cnt) {
         unsigned size = std::min((addr | (burstSize - 1)) + 1,
                         pkt->getAddr() + pkt->getSize()) - addr;
@@ -505,9 +566,19 @@ DRAMCtrl::addToReadQueue(PacketPtr pkt, unsigned int pktCount)
             }
         }
 
+        // JIWON+AMY: check if pkt data is in extra buffer
+        bool foundInExtraBuf = false;
+        if (haveExtraRowBuffer && !foundInWrQ) {
+            uint32_t aligned_addr = addr / extraRowBufferSize;
+            if (extraAddrValid && (aligned_addr == extraRowBufferAddr)) {
+                foundInExtraBuf = true;
+                pktsServicedByExtraBuf++;
+            } 
+        } 
+
         // If not found in the write q, make a DRAM packet and
         // push it onto the read queue
-        if (!foundInWrQ) {
+        if (!foundInWrQ && !foundInExtraBuf) {
 
             // Make the burst helper for split packets
             if (pktCount > 1 && burst_helper == NULL) {
@@ -540,6 +611,26 @@ DRAMCtrl::addToReadQueue(PacketPtr pkt, unsigned int pktCount)
         return;
     }
 
+    // JIWON/AMY: if all packets are serviced by extra buffer, send response back
+    if (pktsServicedByExtraBuf == pktCount) {
+        extraRowBufferHits++;
+        if (curTick() >= extraBufferReadyAt) {
+            totTimeExtraBufferReadyToBufferHit += (curTick() - extraBufferReadyAt);
+            accessAndRespond(pkt, frontendLatency);
+        } else {
+            totExtraBufferDelay += (extraBufferReadyAt - curTick());
+            accessAndRespond(pkt, (extraBufferReadyAt - curTick()) + frontendLatency);
+        }
+        return;
+    }
+
+    // JIWON+AMY: if extrabuffer exists and pkt access happened in dram,
+    // add dummy drampkts to read queue,
+    // to account for timing and power related to buffer-filling bursts
+    if (haveExtraRowBuffer) {
+        addDummiesToReadQueue(pkt);
+    }
+
     // Update how many split packets are serviced by write queue
     if (burst_helper != NULL)
         burst_helper->burstsServiced = pktsServicedByWrQ;
@@ -562,6 +653,15 @@ DRAMCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pktCount)
     // if the request size is larger than burst size, the pkt is split into
     // multiple DRAM packets
     Addr addr = pkt->getAddr();
+
+    // AMY: invalidate extra buffer if write affects its content
+    if (haveExtraRowBuffer) {
+        uint32_t aligned_addr = addr / extraRowBufferSize;
+        if (extraRowBufferAddr == aligned_addr) {
+            extraAddrValid = false;
+        }
+    }
+
     for (int cnt = 0; cnt < pktCount; ++cnt) {
         unsigned size = std::min((addr | (burstSize - 1)) + 1,
                         pkt->getAddr() + pkt->getSize()) - addr;
@@ -770,13 +870,27 @@ DRAMCtrl::processRespondEvent()
             // so we can now respond to the requester
             // @todo we probably want to have a different front end and back
             // end latency for split packets
-            accessAndRespond(dram_pkt->pkt, frontendLatency + backendLatency);
+            if (!(dram_pkt->isDummy)) { // dummy packets should not send response
+                accessAndRespond(dram_pkt->pkt, frontendLatency + backendLatency);
+            } else {
+                totTimeExtraBufferReadyEstToActual += curTick() - extraBufferReadyAt;
+            }
             delete dram_pkt->burstHelper;
             dram_pkt->burstHelper = NULL;
         }
     } else {
+        // JIWON/AMY: 
+        // update content of extrabuffer
+        if (haveExtraRowBuffer && !(dram_pkt->isDummy)) {
+            extraRowBufferAddr = dram_pkt->addr / extraRowBufferSize;
+            if (extraAddrValid == false) { extraAddrValid = true; }
+            extraBufferReadyAt = curTick() //dram_pkt->readyTime 
+                                   + ((extraRowBufferSize / burstSize) - 1) * tBURST;
+        }
         // it is not a split packet
-        accessAndRespond(dram_pkt->pkt, frontendLatency + backendLatency);
+        if (!(dram_pkt->isDummy)) {
+            accessAndRespond(dram_pkt->pkt, frontendLatency + backendLatency);
+        }
     }
 
     delete respQueue.front();
@@ -1876,6 +1990,26 @@ DRAMCtrl::regStats()
         .desc("Average write queue length when enqueuing")
         .precision(2);
 
+    // JIWON
+    totTimeExtraBufferReadyToBufferHit
+        .name(name() + ".totTimeExtraBufferReadyToBufferHit")
+        .desc("Total ticks between extra buffer being ready to buffer hit");
+    totTimeExtraBufferReadyEstToActual
+        .name(name() + ".totTimeExtraBufferReadyEstToActual")
+        .desc("Total ticks between extra buffer estimated to be ready to actual ready time");
+
+    avgTimeExtraBufferReadyToBufferHit
+        .name(name() + ".avgTimeExtraBufferReadyToBufferHit")
+        .desc("(ticks)")
+        .precision(2);
+    avgTimeExtraBufferReadyToBufferHit = totTimeExtraBufferReadyToBufferHit / extraRowBufferHits; // JIWON: not exact, since there could be more than 1 hit, but good enough for estimate
+
+    avgTimeExtraBufferReadyEstToActual
+        .name(name() + ".avgTimeExtraBufferEstToActual")
+        .desc("(ticks)")
+        .precision(2);
+    avgTimeExtraBufferReadyEstToActual = totTimeExtraBufferReadyEstToActual / (readReqs - servicedByWrQ - extraRowBufferHits);
+
     totQLat
         .name(name() + ".totQLat")
         .desc("Total ticks spent queuing");
@@ -1894,21 +2028,21 @@ DRAMCtrl::regStats()
         .desc("Average queueing delay per DRAM burst")
         .precision(2);
 
-    avgQLat = totQLat / (readBursts - servicedByWrQ);
+    avgQLat = totQLat / (readBursts - servicedByWrQ - extraRowBufferHits);
 
     avgBusLat
         .name(name() + ".avgBusLat")
         .desc("Average bus latency per DRAM burst")
         .precision(2);
 
-    avgBusLat = totBusLat / (readBursts - servicedByWrQ);
+    avgBusLat = totBusLat / (readBursts - servicedByWrQ - extraRowBufferHits);
 
     avgMemAccLat
         .name(name() + ".avgMemAccLat")
         .desc("Average memory access latency per DRAM burst")
         .precision(2);
 
-    avgMemAccLat = totMemAccLat / (readBursts - servicedByWrQ);
+    avgMemAccLat = totMemAccLat / (readBursts - servicedByWrQ - extraRowBufferHits);
 
     numRdRetry
         .name(name() + ".numRdRetry")
@@ -1931,7 +2065,7 @@ DRAMCtrl::regStats()
         .desc("Row buffer hit rate for reads")
         .precision(2);
 
-    readRowHitRate = (readRowHits / (readBursts - servicedByWrQ)) * 100;
+    readRowHitRate = (readRowHits / (readBursts - servicedByWrQ - extraRowBufferHits)) * 100;
 
     writeRowHitRate
         .name(name() + ".writeRowHitRate")
@@ -2072,7 +2206,7 @@ DRAMCtrl::regStats()
         .precision(2);
 
     pageHitRate = (writeRowHits + readRowHits) /
-        (writeBursts - mergedWrBursts + readBursts - servicedByWrQ) * 100;
+        (writeBursts - mergedWrBursts + readBursts - servicedByWrQ - extraRowBufferHits) * 100;
 
     pwrStateTime
         .init(5)
@@ -2128,6 +2262,21 @@ DRAMCtrl::regStats()
         .init(ranksPerChannel)
         .name(name() + ".averagePower")
         .desc("Core power per rank (mW)");
+
+    extraRowBufferHits 
+        .name(name() + ".extraRowBufferHits")
+        .desc("Number of extra row buffer hits");
+
+    totExtraBufferDelay
+        .name(name() + ".totExtraBufferDelay")
+        .desc("cumulative delay from waiting buffer to be filled with data");
+
+    avgExtraBufferDelay
+        .name(name() + ".avgExtraBufferDelay")
+        .desc("average delay from waiting buffer to be filled with data")
+        .precision(6);
+
+    avgExtraBufferDelay = (totExtraBufferDelay / extraRowBufferHits) / 1000000000000;
 }
 
 void

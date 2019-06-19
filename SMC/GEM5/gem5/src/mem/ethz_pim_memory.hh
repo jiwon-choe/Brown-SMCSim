@@ -63,6 +63,7 @@ private:
     unsigned long int PIM_COPROCESSOR_CMD_ADDR;
 	unsigned long int SYSTEM_NUM_CPU;
     unsigned pim_arch;
+    int pim_id;  // JIWON: added PIM id
     unsigned long int HMC_ATOMIC_INCR_ADDR;
 
 	System* pim_system;
@@ -72,6 +73,8 @@ private:
 
 	Tick prev_time_stamp;
 	char prev_time_stamp_id;
+
+    std::string pim_sys_name; // JIWON added
 
 	// Hack: caches to be flushed
 	vector<SimObject*> system_caches;

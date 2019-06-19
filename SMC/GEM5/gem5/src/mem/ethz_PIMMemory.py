@@ -32,4 +32,5 @@ class ethz_PIMMemory(SimpleMemory):
     PIM_DMA_CLI_ADDR = Param.Int(0, "DMA Clear Interrupt Register(Absolute Address)");
     PIM_COPROCESSOR_CMD_ADDR = Param.Int(0, "Command to the PIM Coprocessor");
     pim_arch = Param.Int(32, "Determine whether PIM is a 32b (ARMv7-a) or a 64b (ARMv8-a) processor");
+    pim_id = Param.Int(-1, "PIM identifier") # JIWON: added PIM id
     HMC_ATOMIC_INCR_ADDR = Param.Int(0, "Sending atomic command to the HMC");

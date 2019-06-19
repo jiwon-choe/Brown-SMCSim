@@ -25,7 +25,8 @@ ethz_TLB::ethz_TLB(const ethz_TLBParams* p) :
     HMC_ATOMIC_FADD(p->HMC_ATOMIC_FADD),
     HMC_OPERAND(p->HMC_OPERAND),
     dequeueEvent(this),
-    pim_arch(p->pim_arch)
+    pim_arch(p->pim_arch),
+    pim_id(p->pim_id) // JIWON: added pim_id
 {
     PIM_SLICETABLE_PTR = 0;
     PIM_SLICECOUNT = 0;
@@ -42,7 +43,8 @@ ethz_TLB::ethz_TLB(const ethz_TLBParams* p) :
     vector<System *> slist = System::systemList;
     for ( auto it = slist.begin(); it != slist.end(); it++ )
     {
-        if ( (*it)->name() == "system.pim_sys" )
+        // need to account for both single PIM (where name is system.pim_sys) and multi-PIM (name is system.pim_sys%d)
+        if ( ((*it)->name() == ("system.pim_sys" + std::to_string(pim_id))) || ((*it)->name() == "system.pim_sys") )
             pim_system = (*it);
     }
     if ( pim_system == nullptr )

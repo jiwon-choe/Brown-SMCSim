@@ -3,10 +3,13 @@
 export GEM5_PIM_KERNEL=resident.elf
 export PIM_CLOCK_FREQUENCY_GHz="2.0"		# Clock frequency of the PIM processor (GHz)
 export PIM_SPM_ACCESSTIME_ns="0.3"			# This is a very fast SPM accessible by PIM in a single cycle
+export NEW_PIM="FALSE"                      # JIWON: NEW_PIM set true only for near memory PIM
 export HAVE_PIM_DEVICE="TRUE"
+export NUM_PIM_DEVICES=1                    # JIWON: default number of PIM devices
 export PIM_ADDRESS_BASE="0x70000000"
 export PIM_ADDRESS_SIZE="1MB"
-export PIM_VREG_SIZE=4096
+export PIM_ADDRESS_END="0x7FFFFFFF"         # JIWON: last physical address that can be used for PIM memory space (inclusive)
+export PIM_VREG_SIZE=8192 # default: 4096; 16384 caused issues
 export PIM_SREG_COUNT=8
 export PIM_DTLB_SIZE=16
 export PIM_DMA_XFER_SIZE=256                # Software parameter limiting the transfer size when possible
@@ -35,7 +38,8 @@ export PIM_BSS_OFFSET="0x00007000"
 export PIM_STACK_OFFSET="0x0000A000"	# Offset of the PIM's stack
 
 # Host's memory from PIM's point of view (This must be after PIM's SPM)
-export PIM_HOST_OFFSET=0x$(printf "%08X" $(($(conv_to_bytes $PIM_ADDRESS_SIZE))));
+export PIM_SPM_SIZE=0x$(printf "%08X" $(($(conv_to_bytes $PIM_ADDRESS_SIZE))));     #JIWON: created separate PIM_SPM_SIZE and PIM_HOST_OFFSET variables
+export PIM_HOST_OFFSET=0x10000000
 
 ################################################
 ###################UTILITIES####################
@@ -56,31 +60,47 @@ function PIM_RODATA_SIZE()
 # Print PIM's memory map
 function pim_print_mem_map()
 {
-    PIM_PLT_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_PLT_OFFSET})))
-    PIM_TEXT_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_TEXT_OFFSET})))
-	PIM_RODATA_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_RODATA_OFFSET})))
-	PIM_ARRAY_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_ARRAY_OFFSET})))
-	PIM_GOT_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_GOT_OFFSET})))
-	PIM_DATA_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_DATA_OFFSET})))
-	PIM_BSS_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_BSS_OFFSET})))
-	PIM_STACK_PHYS=0x$(printf "%X" $((${PIM_ADDRESS_BASE} + ${PIM_STACK_OFFSET})))
-	PIM_MAX_OFFSET=0x$(printf "%08X" $(($(conv_to_bytes $PIM_ADDRESS_SIZE)-1)));
-	PIM_MAX_PHYS=0x$(printf "%08X" $((${PIM_ADDRESS_BASE} + ${PIM_MAX_OFFSET})))
-	
-	echo -e " $(extend "" 75 "_")"
-	echo -e "|$(extend "[PIM Virtual Address]" 25 "_")$(extend "[System Physical Addr]" 25 "_")$(extend "[Meaning]" 25 "_")|"
-	echo -e "|$(extend "0x00000000" 25 "_")$(extend "$PIM_ADDRESS_BASE" 25 "_")$(extend "SPM Start (bootldr)" 25 "_")|"
-    echo -e "|$(extend "$PIM_PLT_OFFSET" 25 "_")$(extend "$PIM_PLT_PHYS" 25 "_")$(extend ".text" 25 "_")|"
-    echo -e "|$(extend "$PIM_TEXT_OFFSET" 25 "_")$(extend "$PIM_TEXT_PHYS" 25 "_")$(extend ".text" 25 "_")|"
-	echo -e "|$(extend "$PIM_RODATA_OFFSET" 25 "_")$(extend "$PIM_RODATA_PHYS" 25 "_")$(extend ".rodata" 25 "_")|"
-	echo -e "|$(extend "$PIM_ARRAY_OFFSET" 25 "_")$(extend "$PIM_ARRAY_PHYS" 25 "_")$(extend ".array" 25 "_")|"
-	echo -e "|$(extend "$PIM_GOT_OFFSET" 25 "_")$(extend "$PIM_GOT_PHYS" 25 "_")$(extend ".got" 25 "_")|"
-	echo -e "|$(extend "$PIM_DATA_OFFSET" 25 "_")$(extend "$PIM_DATA_PHYS" 25 "_")$(extend ".data" 25 "_")|"
-	echo -e "|$(extend "$PIM_BSS_OFFSET" 25 "_")$(extend "$PIM_BSS_PHYS" 25 "_")$(extend ".bss" 25 "_")|"
-	echo -e "|$(extend "$PIM_STACK_OFFSET" 25 "_")$(extend "$PIM_STACK_PHYS" 25 "_")$(extend ".stack (dir:bss)" 25 "_")|"
-	echo -e "|$(extend "$PIM_MAX_OFFSET" 25 "_")$(extend "$PIM_MAX_PHYS" 25 "_")$(extend "SPM End" 25 "_")|"
-	
-	
-	echo -e "|$(extend "$PIM_HOST_OFFSET" 25 "_")$(extend "0x80000000" 25 "_")$(extend "Main System DRAM" 25 "_")|"
-	echo -e " $(extend "" 75 "_")|"
+    for (( i=0; i<$NUM_PIM_DEVICES; i++ ))
+    do
+        CURR_PIM_ADDRESS_BASE=$(($PIM_ADDRESS_BASE + $(( $PIM_SPM_SIZE * $i ))))
+        PIM_PLT_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_PLT_OFFSET})))
+        PIM_TEXT_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_TEXT_OFFSET})))
+        PIM_RODATA_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_RODATA_OFFSET})))
+        PIM_ARRAY_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_ARRAY_OFFSET})))
+        PIM_GOT_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_GOT_OFFSET})))
+        PIM_DATA_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_DATA_OFFSET})))
+        PIM_BSS_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_BSS_OFFSET})))
+        PIM_STACK_PHYS=0x$(printf "%X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_STACK_OFFSET})))
+        PIM_MAX_OFFSET=0x$(printf "%08X" $(($(conv_to_bytes $PIM_ADDRESS_SIZE)-1)));
+        PIM_MAX_PHYS=0x$(printf "%08X" $((${CURR_PIM_ADDRESS_BASE} + ${PIM_MAX_OFFSET})))
+
+        #CURR_PIM_VIRTUAL_ADDRESS_BASE=$(( 0x00000000 + $(( $PIM_SPM_SIZE * $i ))))
+        CURR_PIM_VIRTUAL_ADDRESS_BASE=0x00000000
+        PIM_PLT_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_PLT_OFFSET )))
+        PIM_TEXT_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_TEXT_OFFSET )))
+        PIM_RODATA_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_RODATA_OFFSET )))
+        PIM_ARRAY_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_ARRAY_OFFSET )))
+        PIM_GOT_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_GOT_OFFSET )))
+        PIM_DATA_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_DATA_OFFSET )))
+        PIM_BSS_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_BSS_OFFSET )))
+        PIM_STACK_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_STACK_OFFSET )))
+        PIM_MAX_VIRTUAL_ADDR=$(printf "0x%08X" $(( $CURR_PIM_VIRTUAL_ADDRESS_BASE + $PIM_MAX_OFFSET )))
+        
+        echo -e " $(extend "" 75 "_")"
+        echo -e "|$(extend "[PIM Virtual Address]" 25 "_")$(extend "[System Physical Addr]" 25 "_")$(extend "[Meaning]" 25 "_")|"
+        echo -e "|$(extend "$(printf "0x%08X" $CURR_PIM_VIRTUAL_ADDRESS_BASE)" 25 "_")$(extend "$(printf "0x%08X" $CURR_PIM_ADDRESS_BASE)" 25 "_")$(extend "SPM Start (bootldr)" 25 "_")|"
+        echo -e "|$(extend "$PIM_PLT_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_PLT_PHYS" 25 "_")$(extend ".text" 25 "_")|"
+        echo -e "|$(extend "$PIM_TEXT_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_TEXT_PHYS" 25 "_")$(extend ".text" 25 "_")|"
+        echo -e "|$(extend "$PIM_RODATA_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_RODATA_PHYS" 25 "_")$(extend ".rodata" 25 "_")|"
+        echo -e "|$(extend "$PIM_ARRAY_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_ARRAY_PHYS" 25 "_")$(extend ".array" 25 "_")|"
+        echo -e "|$(extend "$PIM_GOT_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_GOT_PHYS" 25 "_")$(extend ".got" 25 "_")|"
+        echo -e "|$(extend "$PIM_DATA_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_DATA_PHYS" 25 "_")$(extend ".data" 25 "_")|"
+        echo -e "|$(extend "$PIM_BSS_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_BSS_PHYS" 25 "_")$(extend ".bss" 25 "_")|"
+        echo -e "|$(extend "$PIM_STACK_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_STACK_PHYS" 25 "_")$(extend ".stack (dir:bss)" 25 "_")|"
+        echo -e "|$(extend "$PIM_MAX_VIRTUAL_ADDR" 25 "_")$(extend "$PIM_MAX_PHYS" 25 "_")$(extend "SPM End" 25 "_")|"
+        
+        
+        echo -e "|$(extend "$PIM_HOST_OFFSET" 25 "_")$(extend "0x80000000" 25 "_")$(extend "Main System DRAM" 25 "_")|"
+        echo -e " $(extend "" 75 "_")|"
+    done
 }
