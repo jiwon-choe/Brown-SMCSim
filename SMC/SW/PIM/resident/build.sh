@@ -28,13 +28,20 @@ echo -e "
 $(set_if_true $DEBUG_PIM_RESIDENT "#define DEBUG_RESIDENT")
 " > _params.h
 
-# Kernel parameters
+# Kernel parameters (if PIM_BUILD, if USE_HOST_THREADS, if DEBUG_ON, PIM_ADDRESS_SIZE_BYTES added by JIWON)
 echo -e "
+$(set_if_true $PIM_BUILD "#define PIM_BUILD")
+$(set_if_true $PIM_BUILD "#define $APP_TYPE")
+$(set_if_true $PIM_BUILD "#define MAX_LEVEL $MAX_LEVEL")
 #define $OFFLOADED_KERNEL_NAME
 #define XFER_SIZE $PIM_DMA_XFER_SIZE
 #define MAX_XFER_SIZE $PIM_DMA_MAX_XFER_SIZE
 #define kernel_$OFFLOADED_KERNEL_SUBNAME
 $(set_if_true $USE_HMC_ATOMIC_CMD "#define USE_HMC_ATOMIC_CMD")
+$(set_if_true $USE_HOST_THREADS "#define NUM_HOST_THREADS $NUM_HOST_THREADS")
+$(set_if_true $USE_HOST_THREADS "#define SIM_THREADS_PER_THREAD $SIM_THREADS_PER_THREAD")
+$(set_if_true $DEBUG_ON "#define PIM_DEBUG_ON")
+#define PIM_ADDRESS_SIZE_BYTES $PIM_ADDRESS_SIZE_BYTES
 " > ./kernel_params.h
 
 load_model system/pim_bare_metal_link.sh > resident.ld

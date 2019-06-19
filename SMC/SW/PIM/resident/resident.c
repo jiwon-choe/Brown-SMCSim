@@ -39,6 +39,7 @@ int c_entry() {
 		else
 			pim_error("Woke up but no new command has arrived!");
         PIM_DMA_CLI = 0xFF;
+        PIM_STATUS_REG = PIM_STATUS_SLEEP; // JIWON: moved SLEEP state setting from command_done
 
 	}
 	pim_exit(PIM_ERROR_FAIL);

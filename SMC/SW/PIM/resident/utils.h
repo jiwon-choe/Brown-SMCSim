@@ -114,6 +114,33 @@ void pim_print_hex( char* msg, ulong_t value )
 #endif
 
 //*************************************
+// added by jiwon, used for printing linked list contents
+void pim_print_integer( ulong_t value )
+{
+	int i=0;
+	ulong_t v;
+    ulong_t digit;
+	char num[12];
+	PIM_DEBUG_REG = '[';PIM_DEBUG_REG = 'P';PIM_DEBUG_REG = 'I';PIM_DEBUG_REG = 'M';PIM_DEBUG_REG = ']';PIM_DEBUG_REG = ':';PIM_DEBUG_REG = ' ';
+    v = value;
+    while (1) {
+        digit = v % 10;
+        num[i] = digit + '0';
+        v /= 10;
+        if (v == 0) {
+            break;
+        } else {
+            i++;
+        }
+    }
+    while (i >= 0) {
+        PIM_DEBUG_REG=num[i];
+        i--;
+    }
+	PIM_DEBUG_REG = '\r';
+	PIM_DEBUG_REG = '\n';
+}
+//*************************************
 #ifdef DEBUG_RESIDENT
 void pim_assert(bool condition, char* msg)
 {
@@ -205,7 +232,6 @@ bool new_command_received()
 		PIM_STATUS_REG = PIM_STATUS_BUSY;
 		execute_command();
         /* Indicate end of execution on PIM. This is similar to an interrupt to the host */
-        PIM_M5_REG=PIM_TIME_STAMP+6;
 		return true;
 	}
 	return false;
@@ -231,7 +257,7 @@ void command_done()
 // 		pim_print_char("command_done:wait PIM_STATUS_REG", PIM_STATUS_REG);
 	}
 	// Now we can go to SLEEP state
-	PIM_STATUS_REG = PIM_STATUS_SLEEP;
+	//PIM_STATUS_REG = PIM_STATUS_SLEEP; // commented out by JIWON, moved to resident.c
 }
 
 #endif // _PIM_DEVICE_UTILS_
