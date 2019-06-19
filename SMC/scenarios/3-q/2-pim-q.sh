@@ -9,9 +9,10 @@ GEM5_STATISTICS=(
 )
 
 # singlepim_queue+main_singlepim or clean_queue+main
+# (in order to run single PIM queue, use main_singlepim.cc in SW/HOST/multithread_pim_queue as the main file.)
 
-QUEUE_KERNEL_NAME=clean_queue #singlepim_queue #queue_modified #clean_queue
-QUEUE_TYPE=default # default, always_on
+QUEUE_KERNEL_NAME=clean_queue #use singlepim_queue OR clean_queue
+QUEUE_TYPE=default 
 HOST_APP_DIR=multithread_pim_queue
 
 export USE_HOST_THREADS="TRUE"  
@@ -28,7 +29,6 @@ export NUM_PARTITIONS=8
 export TOTAL_NUM_OPS=786432 # variable by user
 export PUSH_PERCENTAGE=50 # variable by user
 export DEBUG_ON="FALSE"
-export PIM_CORE_ALWAYS_ON="FALSE"
 
 
 source UTILS/default_params.sh
