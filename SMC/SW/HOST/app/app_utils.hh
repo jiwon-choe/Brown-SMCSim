@@ -18,6 +18,7 @@ Utilities to be used by all apps
 #endif
 
 #define ____TIME_STAMP(X)     {pim->record_time_stamp(X);}
+#define ____TIME_STAMP_PIMNO(_pimno, _X)     {pim[_pimno]->record_time_stamp(_X);} // JIWON
 
 /* 
 ****************************
@@ -27,10 +28,15 @@ This util has several benefits:
 1. makes sure that the allocated region is virtually contiguous (better for the driver)
 2. there is no need for address translation inside PIM anymore
 * PHY_SIZE: Reserved space for PIM to avoid virtual address translation between host and PIM
+* PIM_HOST_OFFSET: Reserved space for PIM to avoid virtual address translation between host and PIM 
 * REQUIRED_MEM_SIZE: Dynamically allocated memory to be shared with PIM
 * SMC_BURST_SIZE_B: Align the allocated memory to SMC Burst
 */
-#define MAX_REGION_SIZE (PHY_SIZE+REQUIRED_MEM_SIZE+SMC_BURST_SIZE_B)
+
+//#define MAX_REGION_SIZE (PHY_SIZE+REQUIRED_MEM_SIZE+SMC_BURST_SIZE_B)
+// JIWON: replaced PHY_SIZE with PIM_HOST_OFFSET to account for multiple PIMs
+#define MAX_REGION_SIZE (PIM_HOST_OFFSET+REQUIRED_MEM_SIZE+SMC_BURST_SIZE_B)
+
 volatile char  region_raw[MAX_REGION_SIZE];       // Continuously allocated region
 volatile char* region_aligned;                    // Pointer to the next free memory location
 volatile char* region_end;                        // End of the region
@@ -39,7 +45,7 @@ volatile char* region_end;                        // End of the region
 // Initialize the memory region to be shared with PIM
 void init_region()
 {
-    region_aligned = (char*)&region_raw + PHY_SIZE;
+    region_aligned = (char*)&region_raw + PIM_HOST_OFFSET/*PHY_SIZE*/;
     region_end = (char*)&region_raw + MAX_REGION_SIZE;
     ulong_t mod = ((ulong_t)region_aligned) % SMC_BURST_SIZE_B;
     if ( mod != 0 )
@@ -84,6 +90,18 @@ void print_happy()
         cout << "         OOOOOO         OOOOOO" << endl;
         cout << "             OOOOOOOOOOOO" << endl;
         cout << endl;
+}
+
+// added by JIWON
+void *get_region_end_ptr()
+{
+    return (void *)region_end;
+}
+
+// added by JIWON
+void *get_region_aligned_ptr()
+{
+    return (void *)region_aligned;
 }
 
 #endif
