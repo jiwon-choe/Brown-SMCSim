@@ -4,7 +4,7 @@ Brown-SMCSim an extended version of [SMCSim](https://iis-git.ee.ethz.ch/erfan.az
 It is being actively used for near-data-processing research by PhD student [Jiwon Choe](https://jiwon-choe.github.io/) and her collaborators at Brown University. 
 
 **The scrypt branch contains the simulator and code used for evaluation in the MEMSYS '19 extended abstract
-[Attacking Memory-Hard scrypt with Near-Data-Processing](memsys19-choe.pdf).** Please refer to the "Setup" instructions and "Directions for running scrypt" below. 
+[Attacking Memory-Hard scrypt with Near-Data-Processing](memsys19-choe.pdf).** Please refer to the "Setup" instructions and "scrypt-specific information" below. 
 
 
 The master branch contains the simulator that was used for evaluation in the SPAA '19 paper 
@@ -50,4 +50,20 @@ repository and untar it in the base directory of this repository (the same direc
 use `scenarios/6-scrypt/1-host-scrypt.sh` or `scenarios/6-scrypt/2-pim-scrypt.sh`.
 
 
-## Directions for running scrypt
+## scrypt-specific information
+
+scrypt execution:
+
+- you must have completed the setup stage prior to running the workload
+
+- scrypt-specific parameters: 
+  - `CPU_MEM_COST` is _N_, `BLOCK_SIZE_PARAM` is _r_, `PARALLEL_PARAM` is _p_ (currently only _p=1_ is supported)
+
+- host-only implementation: 
+  - run by `sudo ./scenarios/6-scrypt/1-host-scrypt.sh -o` 
+  - `SW/HOST/app/scrypt-host` contains the related code
+
+- NDP-assisted implementation: 
+  - run by `sudo ./scenarios/6-scrypt/2-pim-scrypt.sh -o`
+  - `SW/HOST/app/scrypt-pim` and `SW/PIM/kernels/scrypt_smix.c` contain the related code
+
