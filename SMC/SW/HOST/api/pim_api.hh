@@ -64,9 +64,13 @@ public:
     uint16_t read_timestamp( int request_slot_number ); // reads the operation timestamp from specified request slot [PIM->HOST]
     void write_parameter( ulong_t parameter, int request_slot_number ); // writes parameter to specified request slot [HOST->PIM]
     ulong_t read_parameter( int request_slot_number ); // reads parameter from specified request slot [PIM->HOST]
-    void write_vault_ptr( ulong_t vault_ptr, int request_slot_number ); // writes vault ptr of node in question to specified request slot [HOST->PIM]
-    ulong_t read_vault_ptr( int request_slot_number ); // reads vault_ptr of added node from specified request slot [PIM->HOST]
     /*end of ADDED BY JIWON*/
+
+
+    /* ADDED BY JIWON, scrypt-specific functions */
+    void write_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment );
+    void read_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment );
+    /* end of ADDED BY JIWON */
 
 	/*
 	Communicating with gem5 (for debugging)
