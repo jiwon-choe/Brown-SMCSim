@@ -3,11 +3,17 @@
 Brown-SMCSim an extended version of [SMCSim](https://iis-git.ee.ethz.ch/erfan.azarkhish/SMCSim) (originally by Erfan Azarkhish). 
 It is being actively used for near-data-processing research by PhD student [Jiwon Choe](https://jiwon-choe.github.io/) and her collaborators at Brown University. 
 
+**The scrypt branch contains the simulator and code used for evaluation in the MEMSYS '19 extended abstract
+[Attacking Memory-Hard scrypt with Near-Data-Processing](memsys19-choe.pdf).** Please refer to the "Setup" instructions and "Directions for running scrypt" below. 
+
+
 The master branch contains the simulator that was used for evaluation in the SPAA '19 paper 
-**[Concurrent Data Structures with Near-Data-Processing: an Architecture-Aware Implementation](spaa19-choe.pdf)**. 
+[Concurrent Data Structures with Near-Data-Processing: an Architecture-Aware Implementation](spaa19-choe.pdf). 
 Please cite the above paper when using this simulator. 
 
 This repository may be merged as a branch to SMCSim in the future.
+
+
 
 ## Major Modifications from SMCSim
 
@@ -41,4 +47,7 @@ repository and untar it in the base directory of this repository (the same direc
 - For the remaining setup, you may follow the setup procedure described in the original SMCSim 
 ([section 3: Build and First Run](https://iis-git.ee.ethz.ch/erfan.azarkhish/SMCSim#3-build-and-first-run)). 
   - **NOTE:** When running the demo scenario, instead of using `scenarios/0-demo/1-singlepim-pagerank.sh`, 
-use `scenarios/4-ndp-list/1-ptrchasing-list.sh`.
+use `scenarios/6-scrypt/1-host-scrypt.sh` or `scenarios/6-scrypt/2-pim-scrypt.sh`.
+
+
+## Directions for running scrypt
