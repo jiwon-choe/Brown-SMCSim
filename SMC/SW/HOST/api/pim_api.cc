@@ -269,7 +269,7 @@ ulong_t PIMAPI::read_parameter( int request_slot_number )
 }
 
 //*********************************************
-void write_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment )
+void PIMAPI::write_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment )
 {
     ASSERT_DBG(PIM_VREG+PIM_VREG_SIZE < PHY_SIZE);
     uint8_t *block_addr = (uint8_t *)((ulong_t)(pim_va + PIM_VREG + (alignment=1)) & ~(alignment-1));
@@ -277,7 +277,7 @@ void write_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment )
 }
 
 //*********************************************
-void read_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment )
+void PIMAPI::read_scrypt_block( uint8_t *block, size_t blocksize, ulong_t alignment )
 {
     ASSERT_DBG(PIM_VREG+PIM_VREG_SIZE < PHY_SIZE);
     uint8_t *block_addr = (uint8_t *)((ulong_t)(pim_va + PIM_VREG + (alignment-1)) & ~(alignment-1));

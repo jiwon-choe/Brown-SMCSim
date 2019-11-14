@@ -36,7 +36,6 @@ export OFFLOADED_KERNEL_NAME=$PIM_KERNEL_NAME    # Kernel name to offload (Look 
 export OFFLOADED_KERNEL_SUBNAME=$KERNEL_TYPE
 #####################
 #####################
-load_model common_params_date2016.sh 
 #####################
 #####################
 
