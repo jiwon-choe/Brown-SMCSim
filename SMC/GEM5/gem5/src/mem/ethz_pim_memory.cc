@@ -106,7 +106,7 @@ void ethz_PIMMemory::init()
 		else
 			panic("Cannot find a pointer to system.pim_sys.dtlb");
 
-        f = SimObject::find("system.pim_sys.dma");
+        f = SimObject::find((pim_sys_name + ".dma").c_str()); // JIWON
         if ( f )
             dma = (ethz_DMA*) f;
         else

@@ -2,7 +2,7 @@
 
 # print_msg "Loading Host Model: ARMv7 (Cortex-A15)"
 
-export GEM5_NUMCPU=2
+export GEM5_NUMCPU=8
 export HOST_CLOCK_FREQUENCY_GHz=2
 export ARCH_ALIAS="arm7"
 export GEM5_PLATFORM=ARM
