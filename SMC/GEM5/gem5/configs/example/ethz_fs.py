@@ -238,7 +238,7 @@ if (options.bare_metal):
     test_sys.realview.nvmem = SimpleMemory(range = AddrRange(0, size = '1MB'))
     test_sys.realview.nvmem.port = test_sys.membus.master
 	
-ethz_perform_sanity_checks(test_sys)
+ethz_perform_sanity_checks(test_sys, options)
 
 # test_sys.pim_sys.cpu.commitWidth=1
 # test_sys.pim_sys.cpu.decodeWidth=1
