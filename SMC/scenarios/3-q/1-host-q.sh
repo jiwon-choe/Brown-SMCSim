@@ -34,7 +34,7 @@ export DRAM_row_size=16  # JIWON: to keep memory size consistent with new PIM ar
 export OFFLOADED_KERNEL_NAME=$QUEUE_KERNEL_NAME    # Kernel name to offload (Look in SMC/SW/PIM/kernels)
 #####################
 #####################
-load_model common_params_date2016.sh #TODO: jiwon -- possibly remove? contains mostly unnecessary graph parameters for sgraph scenarios
+load_model common_params.sh #TODO: jiwon -- possibly remove? contains mostly unnecessary graph parameters for sgraph scenarios
 #####################
 #####################
 

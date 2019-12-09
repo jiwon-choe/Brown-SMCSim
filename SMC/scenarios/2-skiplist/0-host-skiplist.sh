@@ -41,7 +41,7 @@ export DRAM_row_size=16  # JIWON: to be consistent with gem5_new_pim (when it us
 export OFFLOADED_KERNEL_NAME=$SKIPLIST_KERNEL_NAME    # Kernel name to offload (Look in SMC/SW/PIM/kernels)
 #####################
 #####################
-load_model common_params_date2016.sh #TODO: jiwon -- possibly remove? contains mostly unnecessary graph parameters for sgraph scenarios
+load_model common_params.sh #TODO: jiwon -- possibly remove? contains mostly unnecessary graph parameters for sgraph scenarios
 #####################
 #####################
 

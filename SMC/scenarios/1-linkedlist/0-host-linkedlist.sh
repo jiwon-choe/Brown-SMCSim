@@ -45,7 +45,7 @@ export OFFLOADED_KERNEL_NAME=$LINKED_LIST_KERNEL_NAME    # Kernel name to offloa
 export OFFLOADED_KERNEL_SUBNAME=$LINKED_LIST_TYPE
 #####################
 #####################
-load_model common_params_date2016.sh 
+load_model common_params.sh 
 #####################
 #####################
 
