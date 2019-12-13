@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
                     cout << "reached " << size << " items in initial skiplist part " << part_id << endl;
                 }
                 #ifdef HOST_DEBUG_ON
-                cout << "added element: " << element.first << ", partition: " << part_id << ", level: " << request_slot.random_level << endl;
+                cout << "added element: " << request_slot.parameter << ", partition: " << part_id << ", level: " << request_slot.random_level << endl;
                 #endif
             }
         }
